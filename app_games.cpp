@@ -98,11 +98,21 @@ void AppGames_HandleInput(LogicalEvent ev) {
                 GameTetris_Init();
             }
         }
-    } else if (currentGame == GAME_SNAKE) {
-        GameSnake_HandleInput(ev);
-    } else if (currentGame == GAME_PONG) { 
-        GamePong_HandleInput(ev); 
-    } else if (currentGame == GAME_TETRIS) { 
-        GameTetris_HandleInput(ev); 
+    } else {
+        // We are inside a game (Snake, Pong, Tetris)
+        // Allow exiting back to Games Menu using LEFT_HOLD (Pin 3 hold)
+        if (ev == EV_LEFT_HOLD) {
+            AppGames_ExitToMenu();
+            beepTap();
+            return;
+        }
+        
+        if (currentGame == GAME_SNAKE) {
+            GameSnake_HandleInput(ev);
+        } else if (currentGame == GAME_PONG) { 
+            GamePong_HandleInput(ev); 
+        } else if (currentGame == GAME_TETRIS) { 
+            GameTetris_HandleInput(ev); 
+        }
     }
 }

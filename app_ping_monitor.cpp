@@ -731,8 +731,6 @@ static void updError() {
 
 void AppPingMonitor_Init() {
     // ── Radios are now managed by AppManager container system ──
-    WiFi.disconnect();
-    delay(10);
 
     // ── Reset all internal state ──
     pmState       = PMST_WIFI_SELECT;

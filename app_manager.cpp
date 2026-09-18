@@ -19,7 +19,7 @@ static AppContainer apps[10] = {
     {RADIO_BLE,  nullptr,             nullptr},             // 3 (Nokia)
     {RADIO_BLE,  nullptr,             nullptr},             // 4 (Media)
     {RADIO_NONE, nullptr,             nullptr},             // 5
-    {RADIO_NONE, AppGames_Init,       nullptr},             // 6 (Games)
+    {RADIO_NONE, AppGames_Init,       AppGames_ExitToMenu}, // 6 (Games)
     {RADIO_BLE,  nullptr,             nullptr},             // 7 (Setting)
     {RADIO_BLE,  nullptr,             nullptr},             // 8 (Tester)
     {RADIO_WIFI, AppPingMonitor_Init, AppPingMonitor_Exit}  // 9 (Ping Monitor)
