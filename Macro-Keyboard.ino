@@ -1398,7 +1398,10 @@ void setup() {
         struct tm tm = {0};
         // Date header format: Fri, 18 Sep 2026 16:09:27 GMT
         if (strptime(dateStr.c_str(), "%a, %d %b %Y %H:%M:%S %Z", &tm) != NULL) {
-          time_t t = mktime(&tm);
+          // mktime assumes local time, but our string is GMT. 
+          // Since configTime() sets the timezone, mktime subtracts the offset.
+          // We add it back to get the true UTC epoch.
+          time_t t = mktime(&tm) + GMT_OFFSET_S;
           struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
           settimeofday(&tv, NULL);
           ntpSynced = true;
