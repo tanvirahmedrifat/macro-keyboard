@@ -6,7 +6,7 @@
 
 static WebServer server(80);
 static TaskHandle_t webServerTaskHandle = NULL;
-static bool serverRunning = false;
+static volatile bool serverRunning = false;
 
 extern Preferences prefs;
 
