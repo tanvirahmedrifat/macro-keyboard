@@ -75,6 +75,8 @@ void AppManager_Update() {
         AppNokia_Update();
     } else if (activeLayer == 6) {
         AppGames_Update();
+    } else if (activeLayer == 7) {
+        AppSettings_Update();
     } else if (activeLayer == 9) {
         AppPingMonitor_Update();
     }

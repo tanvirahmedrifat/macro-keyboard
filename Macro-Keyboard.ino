@@ -565,6 +565,7 @@ void d1Draw(const char* msg = "", bool showPwd = false) {
   String ln = lastName();
   if (activeLayer == 3) { fn = "WINDOW"; ln = "MACROS"; }
   if (activeLayer == 4) { fn = "MEDIA"; ln = "MACROS"; }
+  if (activeLayer == 7) { fn = "SYSTEM"; ln = "SETTINGS"; }
   if (activeLayer == 8) {
     fn = "TOOLS"; ln = "TESTER";
   }
@@ -897,8 +898,8 @@ void tickIdle() {
     return;
   }
 
-  if (activeLayer == 2 || activeLayer == 6 || activeLayer == 9) {
-    // Do nothing; AppWifi, AppGames and Ping Monitor handle all rendering themselves.
+  if (activeLayer == 2 || activeLayer == 6 || activeLayer == 7 || activeLayer == 9) {
+    // Do nothing: AppWifi, AppGames, AppSettings and PingMonitor manage their own display.
     // Auto-Sleep still works because it's handled at the top of tickIdle().
   } else if (now - idleStartTime > 15000) {
     d1Screensaver(now);

@@ -6,6 +6,7 @@
 
 void AppSettings_Init();
 void AppSettings_Exit();
+void AppSettings_Update();
 void AppSettings_Draw1();
 void AppSettings_Draw2();
 void AppSettings_HandleInput(LogicalEvent ev);

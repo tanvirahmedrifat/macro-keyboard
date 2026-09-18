@@ -16,6 +16,17 @@ void AppSettings_Init() {
     AppSettings_Draw2();
 }
 
+void AppSettings_Update() {
+    // Redraw settings every 500ms to keep display fresh (handles status changes, QR)
+    static unsigned long lastDraw = 0;
+    unsigned long now = millis();
+    if (now - lastDraw > 500) {
+        lastDraw = now;
+        AppSettings_Draw1();
+        AppSettings_Draw2();
+    }
+}
+
 void AppSettings_Exit() {
     WebServer_Stop();
 }
