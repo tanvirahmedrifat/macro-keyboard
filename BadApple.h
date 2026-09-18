@@ -118,6 +118,7 @@ void playBadApple(Adafruit_SSD1306* disp1, Adafruit_SSD1306* disp2) {
   // Wait for the user to release the button that triggered this
   // before starting, otherwise it will instantly abort!
   while (anyBtnPressed()) { delay(10); }
+  delay(150); // CRITICAL: Wait for mechanical release bounce to settle!
 
   if (d1) { d1->clearDisplay(); d1->display(); }
   if (d2) { d2->clearDisplay(); d2->display(); }
