@@ -63,9 +63,9 @@ static void putPixels(uint8_t c, int32_t len, bool& abortFlag) {
           // Frame-rate limiter: pad remaining time up to 33ms (30 fps)
           while((millis() - lastRefresh) < 33) {
             if (anyBtnPressed()) { abortFlag = true; return; }
-            delay(1);
+            delay(10);
           }
-          delay(1); // Unconditionally feed the FreeRTOS Watchdog to prevent crash
+          delay(10); // Unconditionally feed the FreeRTOS Watchdog to prevent crash
           lastRefresh = millis();
         }
       }
