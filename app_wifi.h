@@ -3,9 +3,11 @@
 
 #include "globals.h"
 
+#include "system_input.h"
+
 void AppWifi_Init();
 void AppWifi_Update();
-void AppWifi_HandleInput();
+void AppWifi_HandleEvent(LogicalEvent ev);
 void AppWifi_Exit();
 
 #endif

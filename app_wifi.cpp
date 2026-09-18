@@ -426,77 +426,55 @@ void AppWifi_Exit() {
     exitWifiAnalyzer();
 }
 
-void AppWifi_HandleInput() {
-  // ║ WIFI ANALYZER MODE OVERRIDE                       ║
-  // ╚═══════════════════════════════════════════════════╝
-  if (inWifiMode) {
-    updateWifiAnalyzer();
-    
-    // Simple Debounce for WiFi UI
-    static unsigned long lastBtnTime = 0;
-    if (millis() - lastBtnTime > 200) {
-      if (digitalRead(PIN1) == LOW) { // UP / LEFT
-        resetIdle();
-        if (wifiView == 0) { wifiSel = max(0, wifiSel - 1); wifiLastTick = 0; }
-        lastBtnTime = millis();
-      }
-      else if (digitalRead(PIN2) == LOW) { // DOWN / RIGHT
-        resetIdle();
-        if (wifiView == 0) { wifiSel++; wifiLastTick = 0; }
-        lastBtnTime = millis();
-      }
-      else if (digitalRead(PIN5) == LOW) { // SELECT / CYCLE
-        resetIdle();
-        if (wifiView == 0 && wifiCount > 0) {
-          // Scanner ➡️ RSSI
-          memcpy(targetBSSID, WiFi.BSSID(wifiSel), 6);
-          targetSSID    = WiFi.SSID(wifiSel);
-          targetChannel = WiFi.channel(wifiSel);
-          wifiView = 1;
-          for(int i = 0; i < GRAPH_W; i++) { dbmHistory[i] = 0; trafficHistory[i] = -1; }
-          packetCount = 0;
-          deviceCount = 0;
-          memset(deviceMACs, 0, sizeof(deviceMACs));
-          WiFi.scanDelete(); 
-          wifiLastTick = 0;
-        } 
-        else if (wifiView == 1) {
-          // RSSI ➡️ Traffic
-          wifiView = 2;
-          packetCount = 0;
-          deviceCount = 0;
-          memset(deviceMACs, 0, sizeof(deviceMACs));
-          esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);
-          esp_wifi_set_promiscuous(true);
-          esp_wifi_set_channel(targetChannel, WIFI_SECOND_CHAN_NONE);
-          wifiLastTick = 0; 
-        } 
-        else if (wifiView == 2) {
-          // Traffic ➡️ Scanner
-          esp_wifi_set_promiscuous(false);
-          wifiView = 0;
-          wifiLastTick = 0; 
-        }
-        
-        // Wait for physical release so a normal tap doesn't instantly cycle through all views
-        while (digitalRead(PIN5) == LOW) { delay(10); }
-        lastBtnTime = millis();
-      }
-      
-      // Handle BTN3 TAP manually (Back / Exit)
-      if (digitalRead(PIN3) == LOW) {
-        resetIdle();
-        buzzNote(800, 200);
-        if (wifiView == 1 || wifiView == 2) {
-          if (wifiView == 2) esp_wifi_set_promiscuous(false);
-          wifiView = 0; // Go back to scanner
-          wifiLastTick = 0; // Force immediate frame
-        }
-        lastBtnTime = millis() + 1000; // block inputs temporarily
-      }
-    }
-    return; // Block standard macro logic
+void AppWifi_HandleEvent(LogicalEvent ev) {
+  if (!inWifiMode) return;
+
+  if (ev == EV_UP_TAP) {
+    if (wifiView == 0) { wifiSel = max(0, wifiSel - 1); wifiLastTick = 0; }
   }
-
-
+  else if (ev == EV_DOWN_TAP) {
+    if (wifiView == 0) { wifiSel++; wifiLastTick = 0; }
+  }
+  else if (ev == EV_CENTER_TAP) {
+    if (wifiView == 0 && wifiCount > 0) {
+      // Scanner ➡️ RSSI
+      memcpy(targetBSSID, WiFi.BSSID(wifiSel), 6);
+      targetSSID    = WiFi.SSID(wifiSel);
+      targetChannel = WiFi.channel(wifiSel);
+      wifiView = 1;
+      for(int i = 0; i < GRAPH_W; i++) { dbmHistory[i] = 0; trafficHistory[i] = -1; }
+      packetCount = 0;
+      deviceCount = 0;
+      memset(deviceMACs, 0, sizeof(deviceMACs));
+      WiFi.scanDelete(); 
+      wifiLastTick = 0;
+    } 
+    else if (wifiView == 1) {
+      // RSSI ➡️ Traffic
+      wifiView = 2;
+      packetCount = 0;
+      deviceCount = 0;
+      memset(deviceMACs, 0, sizeof(deviceMACs));
+      esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);
+      esp_wifi_set_promiscuous(true);
+      esp_wifi_set_channel(targetChannel, WIFI_SECOND_CHAN_NONE);
+      wifiLastTick = 0; 
+    } 
+    else if (wifiView == 2) {
+      // Traffic ➡️ Scanner
+      esp_wifi_set_promiscuous(false);
+      wifiView = 0;
+      wifiLastTick = 0; 
+    }
+  }
+  else if (ev == EV_LEFT_TAP) {
+    buzzNote(800, 200);
+    if (wifiView == 1 || wifiView == 2) {
+      if (wifiView == 2) esp_wifi_set_promiscuous(false);
+      wifiView = 0; // Go back to scanner
+      wifiLastTick = 0; // Force immediate frame
+    } else {
+      AppManager_ReturnToMenu();
+    }
+  }
 }

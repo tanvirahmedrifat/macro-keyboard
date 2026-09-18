@@ -69,8 +69,12 @@ void AppManager_SwitchApp(int layerIndex) {
 }
 
 void AppManager_Update() {
-    if (activeLayer == 3) {
+    if (activeLayer == 2) {
+        AppWifi_Update();
+    } else if (activeLayer == 3) {
         AppNokia_Update();
+    } else if (activeLayer == 6) {
+        AppGames_Update();
     } else if (activeLayer == 9) {
         AppPingMonitor_Update();
     }
@@ -109,16 +113,19 @@ void AppManager_HandleEvent(LogicalEvent ev) {
     // Wake display on any action
     resetIdle();
 
-    // ── Layer 9 (Ping Monitor): forward all events, including BACKSPACE_HOLD_2S
+    // ── Layer 2 (WiFi Analyzer) and Layer 9 (Ping Monitor): forward all events, including BACKSPACE_HOLD_2S
     // Prevents global shortcuts (display cycle, Bad Apple) from firing inside the app.
-    if (activeLayer == 9) {
+    if (activeLayer == 2 || activeLayer == 9) {
         if (ev == EV_UP_HOLD    || ev == EV_DOWN_HOLD  || ev == EV_LEFT_HOLD ||
             ev == EV_RIGHT_HOLD || ev == EV_CENTER_HOLD) {
             beepHoldReady();
         } else if (ev != EV_NONE) {
             beepTap();
         }
-        AppPingMonitor_HandleEvent(ev);
+        
+        if (activeLayer == 2) AppWifi_HandleEvent(ev);
+        else if (activeLayer == 9) AppPingMonitor_HandleEvent(ev);
+        
         return;
     }
 

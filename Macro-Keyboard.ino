@@ -887,8 +887,8 @@ void tickIdle() {
   if (now - drawTimer < DRAW_RATE) return;
   drawTimer = now;
 
-  if (activeLayer == 6 || activeLayer == 9) {
-    // Do nothing; AppGames and Ping Monitor handle all rendering themselves.
+  if (activeLayer == 2 || activeLayer == 6 || activeLayer == 9) {
+    // Do nothing; AppWifi, AppGames and Ping Monitor handle all rendering themselves.
     // Auto-Sleep still works because it's handled at the top of tickIdle().
   } else if (now - idleStartTime > 15000) {
     d1Screensaver(now);
@@ -1471,21 +1471,9 @@ void loop() {
     return; // skip all macro logic while sleeping / just woken
   }
 
-  // ║ WIFI ANALYZER MODE OVERRIDE                       ║
-  if (activeLayer == 2) {
-    AppWifi_Update();
-    AppWifi_HandleInput();
-    return; // Block standard macro logic
-  }
+  // ║ WIFI ANALYZER MODE OVERRIDE DELETED               ║
 
-  // ║ GAMES MODE OVERRIDE                               ║
-  if (activeLayer == 6) {
-    AppGames_Update();
-    // AppGames_HandleInput is handled by Universal Input block below
-    // But we need to return here to prevent standard macro logic from firing?
-    // Wait, no, we need to allow SystemInput_Update() to run to catch the directional inputs!
-  }
-
+  // ║ GAMES MODE OVERRIDE DELETED                       ║
   // ── BACKGROUND BLE BEEP ───────────────────────────────────
   if (con != wasCon) {
     wasCon = con;
