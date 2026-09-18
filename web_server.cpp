@@ -56,6 +56,11 @@ const char index_html[] PROGMEM = R"rawliteral(
     <button onclick="saveSettings()">Save Settings</button>
   </div>
 
+  <div class="card" style="border-left: 4px solid #ff3333;">
+    <h2 style="color: #ff3333;">Power Options</h2>
+    <button style="background: #ff3333; color: white;" onclick="rebootDevice()">Reboot Keyboard</button>
+  </div>
+
   <script>
     function fetchNetworks() {
       fetch('/api/wifi').then(r=>r.json()).then(data => {
@@ -88,6 +93,11 @@ const char index_html[] PROGMEM = R"rawliteral(
       const slp = document.getElementById('sleepTimeout').value;
       fetch('/api/settings/update', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`silentMode=${sil}&sleepTimeout=${slp}` })
         .then(() => alert('Settings saved! Reboot for network changes to apply.'));
+    }
+    function rebootDevice() {
+      if (confirm('Are you sure you want to reboot the keyboard?')) {
+        fetch('/api/reboot', { method:'POST' }).then(() => alert('Rebooting...'));
+      }
     }
     fetchNetworks(); fetchSettings();
   </script>
@@ -164,6 +174,12 @@ static void handleUpdateSettings() {
     }
 }
 
+static void handleReboot() {
+    server.send(200, "text/plain", "Rebooting...");
+    delay(500);
+    ESP.restart();
+}
+
 static void webServerTask(void *pvParameters) {
     server.on("/", handleRoot);
     server.on("/api/wifi", HTTP_GET, handleGetWifi);
@@ -171,6 +187,7 @@ static void webServerTask(void *pvParameters) {
     server.on("/api/wifi/del", HTTP_POST, handleDelWifi);
     server.on("/api/settings", HTTP_GET, handleGetSettings);
     server.on("/api/settings/update", HTTP_POST, handleUpdateSettings);
+    server.on("/api/reboot", HTTP_POST, handleReboot);
     
     server.begin();
     serverRunning = true;
