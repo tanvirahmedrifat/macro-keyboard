@@ -1169,6 +1169,15 @@ void BootMenu_HandleInput(LogicalEvent ev) {
   } else if (ev == EV_LEFT_TAP || ev == EV_RIGHT_TAP || ev == EV_LEFT_HOLD || ev == EV_RIGHT_HOLD) {
     // LEFT/RIGHT wake up screensaver but do nothing else in vertical menu.
     resetIdle();
+  } else if (ev == EV_CENTER_HOLD_5S) {
+    dispState = 0;          // Force both displays ON
+    setDisplays();
+    wakeDisplays();
+    drawAction(">> bad apple!");
+    delay(300);
+    extern void playBadApple(Adafruit_SSD1306*, Adafruit_SSD1306*);
+    playBadApple(&oled, &oled2);
+    resetIdle();
   }
 }
 
