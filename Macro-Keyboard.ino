@@ -1381,9 +1381,40 @@ void setup() {
       syncState = TASK_SUCCESS;
       fetchWeatherOnce();
     } else {
+      Serial.println("[NTP] UDP SYNC FAILED — trying HTTP fallback...");
+      syncPct = 50;
+      
+      HTTPClient http;
+      http.begin("http://google.com/");
+      const char * headerKeys[] = {"Date"};
+      http.collectHeaders(headerKeys, 1);
+      http.setTimeout(4000);
+      int code = http.sendRequest("HEAD");
+      
+      if (code > 0 && http.hasHeader("Date")) {
+        String dateStr = http.header("Date");
+        Serial.printf("[HTTP] Got Date: %s\n", dateStr.c_str());
+        
+        struct tm tm = {0};
+        // Date header format: Fri, 18 Sep 2026 16:09:27 GMT
+        if (strptime(dateStr.c_str(), "%a, %d %b %Y %H:%M:%S %Z", &tm) != NULL) {
+          time_t t = mktime(&tm);
+          struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+          settimeofday(&tv, NULL);
+          ntpSynced = true;
+          Serial.println("[HTTP] Time synced successfully");
+        }
+      }
+      http.end();
+
       syncPct = 100;
-      syncState = TASK_FAILED;
-      Serial.println("[NTP] SYNC FAILED — timed out after 10s");
+      if (ntpSynced) {
+        syncState = TASK_SUCCESS;
+        fetchWeatherOnce();
+      } else {
+        syncState = TASK_FAILED;
+        Serial.println("[SYNC] All time sync methods failed");
+      }
     }
   } else {
     syncState = TASK_FAILED;
