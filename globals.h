@@ -31,6 +31,7 @@ extern bool inBootMenu;
 extern bool ntpSynced;
 extern bool oledSleeping;
 extern bool silentMode;
+extern unsigned long sleepTimeoutMs;
 
 // Display Utilities
 void wakeDisplays();

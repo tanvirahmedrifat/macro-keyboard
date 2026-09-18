@@ -1,13 +1,11 @@
-
-
-
 #include "app_manager.h"
 #include "app_wifi.h"
 #include "app_ios_macro.h"
 #include "app_nokia.h"
 #include "app_media.h"
-#include "app_tester.h"
 #include "app_games.h"
+#include "app_settings.h"
+#include "app_tester.h"
 #include "app_ping_monitor.h"
 
 extern void BootMenu_HandleInput(LogicalEvent ev);
@@ -22,7 +20,7 @@ static AppContainer apps[10] = {
     {RADIO_BLE,  nullptr,             nullptr},             // 4 (Media)
     {RADIO_NONE, nullptr,             nullptr},             // 5
     {RADIO_NONE, AppGames_Init,       AppGames_ExitToMenu}, // 6 (Games)
-    {RADIO_BLE,  nullptr,             nullptr},             // 7 (Setting)
+    {RADIO_BLE,  AppSettings_Init,    nullptr},             // 7 (Setting)
     {RADIO_BLE,  nullptr,             nullptr},             // 8 (Tester)
     {RADIO_WIFI, AppPingMonitor_Init, AppPingMonitor_Exit}  // 9 (Ping Monitor)
 };
@@ -140,6 +138,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn1_Tap();
                 else if (activeLayer == 4) AppMedia_Btn1_Tap();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
                 else if (activeLayer == 8) AppTester_Btn1_Tap();
             }
             break;
@@ -152,6 +151,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn1_Hold();
                 else if (activeLayer == 4) AppMedia_Btn1_Hold();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
             }
             break;
             
@@ -163,6 +163,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn2_Tap();
                 else if (activeLayer == 4) AppMedia_Btn2_Tap();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
                 else if (activeLayer == 8) AppTester_Btn2_Tap();
             }
             break;
@@ -175,6 +176,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn2_Hold();
                 else if (activeLayer == 4) AppMedia_Btn2_Hold();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
             }
             break;
             
@@ -186,6 +188,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn3_Tap();
                 else if (activeLayer == 4) AppMedia_Btn3_Tap();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
                 else if (activeLayer == 8) AppTester_Btn3_Tap();
             }
             break;
@@ -198,6 +201,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn3_Hold();
                 else if (activeLayer == 4) AppMedia_Btn3_Hold();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
             }
             break;
             
@@ -209,6 +213,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn4_Tap();
                 else if (activeLayer == 4) AppMedia_Btn4_Tap();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
                 else if (activeLayer == 8) AppTester_Btn4_Tap();
             }
             break;
@@ -221,6 +226,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 else if (activeLayer == 3) AppNokia_Btn4_Hold();
                 else if (activeLayer == 4) AppMedia_Btn4_Hold();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
             }
             break;
             
@@ -230,6 +236,7 @@ void AppManager_HandleEvent(LogicalEvent ev) {
                 beepTap();
                 if (activeLayer == 3) AppNokia_Btn5_Tap();
                 else if (activeLayer == 6) AppGames_HandleInput(ev);
+                else if (activeLayer == 7) AppSettings_HandleInput(ev);
                 else if (activeLayer == 8) AppTester_Btn5_Tap();
             }
             break;

@@ -123,7 +123,7 @@ bool inBootMenu = true;
 int menuSel = 0;       
 int menuScroll = 0;
 const int MENU_COUNT = 8;
-const char* menuNames[8] = {"WIFI ANALYSER", "IOS Macro", "Nokia Keybord", "Media Mode", "Games", "Setting", "Tools", "PING MONITOR"};
+const char* menuNames[8] = {"WIFI ANALYZER", "IOS Macro", "Nokia Keyboard", "Media Mode", "Games", "Settings", "Button Tester", "PING MONITOR"};
 const int menuLayers[8] = {2, 1, 3, 4, 6, 7, 8, 9};
 
 // ── OLED AUTO-SLEEP (Burn-in Protection) ─────────────────────────────────
@@ -132,7 +132,7 @@ const int menuLayers[8] = {2, 1, 3, 4, 6, 7, 8, 9};
 // permanent phosphor burn-in caused by long-running static images.
 bool          oledSleeping  = false;
 bool          silentMode    = false;
-const unsigned long SLEEP_AFTER_MS = 5UL * 60UL * 1000UL;  // 5 minutes
+unsigned long sleepTimeoutMs = 5UL * 60UL * 1000UL;  // 5 minutes (mutable)
 
 // ── IDLE DISPLAY STATE ──────────────────────────────────────────────────
 unsigned long drawTimer = 0;
@@ -688,6 +688,7 @@ static unsigned long actionToastEnd = 0;
 
 void drawAction(const char* msg) {
   strncpy(actionToastMsg, msg, 31);
+  actionToastMsg[31] = '\0';
   actionToastEnd = millis() + 600;
   _drawActionInternal();
 }
@@ -884,8 +885,8 @@ void d2Screensaver() {
 void tickIdle() {
   unsigned long now = millis();
 
-  // ── Auto-Sleep: power off OLEDs after SLEEP_AFTER_MS of inactivity ───────
-  if (!oledSleeping && (now - idleStartTime >= SLEEP_AFTER_MS)) {
+  // ── Auto-Sleep: power off OLEDs after sleepTimeoutMs of inactivity ───────
+  if (sleepTimeoutMs > 0 && !oledSleeping && (now - idleStartTime >= sleepTimeoutMs)) {
     sleepDisplays();
     return; // nothing to draw — displays are off
   }
@@ -1133,7 +1134,7 @@ void updateBootMenu() {
   unsigned long now = millis();
 
   // If sleep timeout reached, sleep displays
-  if (!oledSleeping && (now - idleStartTime >= SLEEP_AFTER_MS)) {
+  if (sleepTimeoutMs > 0 && !oledSleeping && (now - idleStartTime >= sleepTimeoutMs)) {
     sleepDisplays();
   }
   if (oledSleeping) return; // Completely asleep, ignore drawing
@@ -1481,6 +1482,7 @@ void loop() {
     } else {
       tickIdle(); // still call tickIdle so it can check sleep timer (no-op while sleeping)
     }
+    delay(50);  // Yield to IDLE task to massively reduce CPU power while OLEDs are off
     return; // skip all macro logic while sleeping / just woken
   }
 
