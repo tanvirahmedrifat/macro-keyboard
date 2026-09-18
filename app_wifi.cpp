@@ -6,7 +6,7 @@ bool inWifiMode = false;
 int wifiView = 0; // 0=Scanner, 1=Target RSSI, 2=Target Traffic
 int wifiSel = 0; // Selected network index
 int wifiCount = 0; // Scanned network count
-String targetSSID = "";
+char targetSSID[33] = {0};
 uint8_t targetBSSID[6];
 int targetChannel = 1;
 
@@ -153,8 +153,8 @@ void drawWifiTarget() {
   oled.print("CH");
   oled.print(targetChannel);
   oled.print(" ");
-  String s = targetSSID;
-  if(s.length() > 13) s = s.substring(0, 13);
+  char s[14] = {0};
+  strncpy(s, targetSSID, 13);
   oled.print(s);
   
   oled.setTextColor(SSD1306_WHITE);
@@ -225,9 +225,9 @@ void drawWifiDisplay2() {
       int sel = constrain(wifiSel, 0, n - 1);
 
       // Left: SSID / RSSI / channel / position
-      String ssid = WiFi.SSID(sel);
-      if (ssid.length() > 8) ssid = ssid.substring(0, 8);
-      d2L(16, ssid.c_str());
+      char ssidBuf[9] = {0};
+      strncpy(ssidBuf, WiFi.SSID(sel).c_str(), 8);
+      d2L(16, ssidBuf);
 
       char rBuf[8];
       snprintf(rBuf, sizeof(rBuf), "%ddBm", WiFi.RSSI(sel));
@@ -265,9 +265,9 @@ void drawWifiDisplay2() {
     oled2.setTextSize(1);
 
     // Left
-    String tSSID = targetSSID;
-    if (tSSID.length() > 8) tSSID = tSSID.substring(0, 8);
-    d2L(16, tSSID.c_str());
+    char tSSID[9] = {0};
+    strncpy(tSSID, targetSSID, 8);
+    d2L(16, tSSID);
     char chBuf[7];
     snprintf(chBuf, sizeof(chBuf), "CH: %d", targetChannel);
     d2L(26, chBuf);
@@ -308,9 +308,9 @@ void drawWifiDisplay2() {
     int kbps = rawKbps < 0 ? 0 : rawKbps;
 
     // Left
-    String tSSID = targetSSID;
-    if (tSSID.length() > 8) tSSID = tSSID.substring(0, 8);
-    d2L(16, tSSID.c_str());
+    char tSSID[9] = {0};
+    strncpy(tSSID, targetSSID, 8);
+    d2L(16, tSSID);
 
     char trafBuf[9];
     if (kbps >= 1024) snprintf(trafBuf, sizeof(trafBuf), "%.1fMB/s", kbps / 1024.0f);
@@ -435,7 +435,8 @@ void AppWifi_HandleEvent(LogicalEvent ev) {
     if (wifiView == 0 && wifiCount > 0) {
       // Scanner ➡️ RSSI
       memcpy(targetBSSID, WiFi.BSSID(wifiSel), 6);
-      targetSSID    = WiFi.SSID(wifiSel);
+      strncpy(targetSSID, WiFi.SSID(wifiSel).c_str(), 32);
+      targetSSID[32] = '\0';
       targetChannel = WiFi.channel(wifiSel);
       wifiView = 1;
       for(int i = 0; i < GRAPH_W; i++) { dbmHistory[i] = 0; trafficHistory[i] = -1; }
