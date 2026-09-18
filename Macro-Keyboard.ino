@@ -1282,12 +1282,18 @@ void setup() {
          wifiConnected = true;
          break;
       }
+      
+      // Allow user to skip Wi-Fi setup by pressing any button
+      if (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW || digitalRead(PIN3) == LOW || digitalRead(PIN4) == LOW || digitalRead(PIN5) == LOW) {
+         break;
+      }
+
       wifiPct = 10 + ((millis() - wifiAttemptStart) / 150) % 80;
       delay(10);
     }
 
     // Try fallbacks
-    if (!wifiConnected) {
+    if (!wifiConnected && digitalRead(PIN1) != LOW && digitalRead(PIN2) != LOW && digitalRead(PIN3) != LOW && digitalRead(PIN4) != LOW && digitalRead(PIN5) != LOW) {
       for (int ni = 1; ni < WIFI_NET_COUNT; ni++) {
         WiFi.disconnect(true);
         delay(100);
@@ -1295,15 +1301,20 @@ void setup() {
         WiFi.begin(WIFI_NETS[ni].ssid, WIFI_NETS[ni].pass);
         
         unsigned long tryStart = millis();
+        bool skipped = false;
         while (millis() - tryStart < 8000) {
           if (WiFi.status() == WL_CONNECTED) {
             wifiConnected = true;
             break;
           }
+          if (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW || digitalRead(PIN3) == LOW || digitalRead(PIN4) == LOW || digitalRead(PIN5) == LOW) {
+             skipped = true;
+             break;
+          }
           wifiPct = 10 + ((millis() - tryStart) / 100) % 80;
           delay(10);
         }
-        if (wifiConnected) break;
+        if (wifiConnected || skipped) break;
       }
     }
   }
@@ -1338,8 +1349,13 @@ void setup() {
       if (getLocalTime(&timeinfo, 1000)) {
          ntpSynced = true;
       }
-      syncPct = 10 + ((millis() - waitStart) / 100) % 80;
+      
+      // Allow user to skip NTP setup by pressing any button
+      if (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW || digitalRead(PIN3) == LOW || digitalRead(PIN4) == LOW || digitalRead(PIN5) == LOW) {
+         break;
+      }
 
+      syncPct = 10 + ((millis() - waitStart) / 100) % 80;
     }
     
     if (ntpSynced) {

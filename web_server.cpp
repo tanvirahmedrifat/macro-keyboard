@@ -1,6 +1,7 @@
 #include "web_server.h"
 #include <WebServer.h>
 #include <Preferences.h>
+#include <Update.h>
 #include "globals.h"
 
 static WebServer server(80);
@@ -61,6 +62,15 @@ const char index_html[] PROGMEM = R"rawliteral(
     <button style="background: #ff3333; color: white;" onclick="rebootDevice()">Reboot Keyboard</button>
   </div>
 
+  <div class="card" style="border-left: 4px solid #b300ff;">
+    <h2 style="color: #b300ff;">OTA Firmware Update</h2>
+    <form method="POST" action="/update" enctype="multipart/form-data" id="otaForm">
+      <input type="file" name="update" style="margin-bottom: 10px;">
+      <button type="submit" style="background: #b300ff; color: white;">Upload Firmware (.bin)</button>
+    </form>
+    <div id="otaProgress" style="display:none; margin-top:10px; color:#b300ff;">Uploading... Please wait.</div>
+  </div>
+
   <script>
     function fetchNetworks() {
       fetch('/api/wifi').then(r=>r.json()).then(data => {
@@ -99,6 +109,11 @@ const char index_html[] PROGMEM = R"rawliteral(
         fetch('/api/reboot', { method:'POST' }).then(() => alert('Rebooting...'));
       }
     }
+    
+    document.getElementById('otaForm').onsubmit = function() {
+      document.getElementById('otaProgress').style.display = 'block';
+    };
+
     fetchNetworks(); fetchSettings();
   </script>
 </body>
@@ -180,6 +195,34 @@ static void handleReboot() {
     ESP.restart();
 }
 
+static void handleUpdateComplete() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/plain", (Update.hasError()) ? "OTA Failed" : "OTA Success! Rebooting...");
+    if (!Update.hasError()) {
+        delay(1000);
+        ESP.restart();
+    }
+}
+
+static void handleUpdateUpload() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+            Update.printError(Serial);
+        }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+            Update.printError(Serial);
+        }
+    } else if (upload.status == UPLOAD_FILE_END) {
+        if (Update.end(true)) {
+            // Success
+        } else {
+            Update.printError(Serial);
+        }
+    }
+}
+
 static void webServerTask(void *pvParameters) {
     server.on("/", handleRoot);
     server.on("/api/wifi", HTTP_GET, handleGetWifi);
@@ -188,6 +231,9 @@ static void webServerTask(void *pvParameters) {
     server.on("/api/settings", HTTP_GET, handleGetSettings);
     server.on("/api/settings/update", HTTP_POST, handleUpdateSettings);
     server.on("/api/reboot", HTTP_POST, handleReboot);
+    
+    // OTA Routes
+    server.on("/update", HTTP_POST, handleUpdateComplete, handleUpdateUpload);
     
     server.begin();
     serverRunning = true;
