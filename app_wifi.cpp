@@ -77,8 +77,6 @@ void startWifiAnalyzer() {
   wifiLastTick = 0;
   
   // Prepare WiFi (Radio is already activated by AppContainer transition)
-  WiFi.disconnect();
-  delay(10);
   
   WiFi.scanNetworks(true); // Start async scan
 }
@@ -91,8 +89,6 @@ void exitWifiAnalyzer() {
   esp_wifi_set_promiscuous(false);
   
   WiFi.scanDelete(); // Free memory from scanner
-  
-  WiFi.disconnect(true);
 }
 
 void drawWifiScanner() {

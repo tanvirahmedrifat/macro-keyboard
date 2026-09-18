@@ -897,8 +897,6 @@ void AppPingMonitor_Exit() {
     killPingTask();
 
     // ── Radios are now managed by AppManager container system ──
-    WiFi.disconnect();
-    delay(10);
 
     // ── Reset state for clean re-entry ──
     pmState      = PMST_WIFI_SELECT;

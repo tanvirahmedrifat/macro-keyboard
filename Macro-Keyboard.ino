@@ -1088,16 +1088,23 @@ void drawMenuList() {
   d2L(20, lName);
   
   // App name line 2/3
-  String name = menuNames[menuSel];
-  int spaceIdx = name.indexOf(' ');
+  const char* name = menuNames[menuSel];
+  const char* space = strchr(name, ' ');
+  char line1[16] = {0};
+  char line2[16] = {0};
   
-  if (spaceIdx > 0 && spaceIdx <= 8) {
-    d2L(32, name.substring(0, spaceIdx).c_str());
-    d2L(44, name.substring(spaceIdx + 1).c_str());
+  if (space != nullptr && (space - name) <= 8) {
+    int len1 = space - name;
+    strncpy(line1, name, len1);
+    strncpy(line2, space + 1, 15);
+    d2L(32, line1);
+    d2L(44, line2);
   } else {
-    d2L(32, name.substring(0, 8).c_str());
-    if (name.length() > 8) {
-      d2L(44, name.substring(8).c_str());
+    strncpy(line1, name, 8);
+    d2L(32, line1);
+    if (strlen(name) > 8) {
+      strncpy(line2, name + 8, 15);
+      d2L(44, line2);
     }
   }
 
