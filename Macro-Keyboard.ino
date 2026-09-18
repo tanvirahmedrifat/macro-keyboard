@@ -487,7 +487,7 @@ void fetchWeatherOnce() {
   if (httpCode == 200) {
     String payload = http.getString();
     // Static doc sized for the Open-Meteo response (~512 bytes of JSON fields)
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, payload);
     if (!error) {
       weatherTemp = doc["current_weather"]["temperature"].as<float>();
