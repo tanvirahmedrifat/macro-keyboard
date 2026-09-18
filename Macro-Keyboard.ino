@@ -683,9 +683,17 @@ void drawPasswordTyping() {
   d2Typing("TYPING:", "PWD", h1, h2); // D2: password in safe zones
 }
 
-// ── DRAW ACTION: updates BOTH displays ──
+static char actionToastMsg[32] = {0};
+static unsigned long actionToastEnd = 0;
+
 void drawAction(const char* msg) {
-  d1Draw(msg);  // D1: action msg in content area
+  strncpy(actionToastMsg, msg, 31);
+  actionToastEnd = millis() + 600;
+  _drawActionInternal();
+}
+
+void _drawActionInternal() {
+  d1Draw(actionToastMsg);  // D1: action msg in content area
   
   // D2: action in safe zones
   oled2.clearDisplay();
@@ -695,7 +703,6 @@ void drawAction(const char* msg) {
   d2Divider();
   
   oled2.setTextSize(2);
-  // "RUN!" at size 2 is 4 chars = 48px
   oled2.setCursor(23, 24); oled2.print("RUN!");
   
   if ((millis() / 200) % 2 == 0) oled2.fillRect(78, 28, 6, 6, SSD1306_WHITE);
@@ -886,6 +893,12 @@ void tickIdle() {
 
   if (now - drawTimer < DRAW_RATE) return;
   drawTimer = now;
+
+  // Intercept normal rendering if a toast is active
+  if (actionToastEnd > 0 && now < actionToastEnd) {
+    _drawActionInternal();
+    return;
+  }
 
   if (activeLayer == 2 || activeLayer == 6 || activeLayer == 9) {
     // Do nothing; AppWifi, AppGames and Ping Monitor handle all rendering themselves.

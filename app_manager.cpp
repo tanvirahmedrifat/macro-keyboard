@@ -235,12 +235,17 @@ void AppManager_HandleEvent(LogicalEvent ev) {
             break;
             
         case EV_CENTER_HOLD:
-            beepHoldReady();
-            dispState = (dispState + 1) % 4;
-            setDisplays();
-            if (dispState == 0) { drawAction(">> Both ON");  delay(600); }
-            else if (dispState == 1) { drawAction(">> D1 ON"); delay(600); }
-            resetIdle();
+            if (activeLayer == 0) BootMenu_HandleInput(ev);
+            else {
+                beepHoldReady();
+                dispState = (dispState + 1) % 4; // 0=Both, 1=D1, 2=D2, 3=Off
+                setDisplays();
+                if (dispState == 0) { drawAction(">> Both ON"); }
+                else if (dispState == 1) { drawAction(">> D1 ON"); }
+                else if (dispState == 2) { drawAction(">> D2 ON"); }
+                else if (dispState == 3) { drawAction(">> Displays OFF"); }
+                resetIdle();
+            }
             break;
             
         case EV_BACKSPACE_HOLD_2S:
