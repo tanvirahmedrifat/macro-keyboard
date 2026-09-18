@@ -4,8 +4,9 @@
 #include "bad_apple_data.h"
 #include "heatshrink_decoder.h"
 
-// Bad Apple Decoder State
-static heatshrink_decoder hsd;
+// Allocate memory for the decoder (20 byte header + 4096 byte flexible array)
+static uint8_t hsd_mem[sizeof(heatshrink_decoder) + (1 << 11) + 2048];
+static heatshrink_decoder& hsd = *(heatshrink_decoder*)hsd_mem;
 static int16_t curr_x = 0;
 static int16_t curr_y = 0;
 static int32_t runlength = -1;
