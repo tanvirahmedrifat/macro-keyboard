@@ -1288,7 +1288,13 @@ void setup() {
   bool wifiConnected = false;
 
   if (WIFI_NET_COUNT > 0) {
+    WiFi.mode(WIFI_STA);   // Must be set BEFORE WiFi.begin() on ESP32
+    WiFi.setAutoReconnect(false);
+    WiFi.setSleep(false);  // Disable power-save — improves NTP reliability
+    delay(100);
+
     WIFI_SSID = WIFI_NETS[0].ssid;
+    Serial.printf("[WiFi] Trying: %s\n", WIFI_NETS[0].ssid);
     WiFi.begin(WIFI_NETS[0].ssid, WIFI_NETS[0].pass);
 
     // Try primary
@@ -1306,8 +1312,9 @@ void setup() {
     if (!wifiConnected) {
       for (int ni = 1; ni < WIFI_NET_COUNT; ni++) {
         WiFi.disconnect(true);
-        delay(100);
+        delay(200);
         WIFI_SSID = WIFI_NETS[ni].ssid;
+        Serial.printf("[WiFi] Trying fallback: %s\n", WIFI_NETS[ni].ssid);
         WiFi.begin(WIFI_NETS[ni].ssid, WIFI_NETS[ni].pass);
         
         unsigned long tryStart = millis();
@@ -1322,6 +1329,11 @@ void setup() {
         if (wifiConnected) break;
       }
     }
+  }
+
+  if (wifiConnected) {
+    delay(200); // Let DHCP/routing fully stabilise before NTP
+    Serial.printf("[WiFi] Connected: %s  IP: %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   }
 
   if (!wifiConnected) {
@@ -1345,15 +1357,23 @@ void setup() {
     syncState = TASK_RUNNING;
     syncPct = 0;
 
-    configTime(GMT_OFFSET_S, DST_OFFSET_S, NTP_SERVER);
+    Serial.printf("[NTP] Starting sync (3 servers, GMT+%ld)\n", GMT_OFFSET_S / 3600);
+    // Pass 3 servers — ESP32 SNTP tries all simultaneously, uses fastest reply
+    configTime(GMT_OFFSET_S, DST_OFFSET_S,
+               "pool.ntp.org",
+               "time.google.com",
+               "time.cloudflare.com");
     
     unsigned long waitStart = millis();
-    while (!ntpSynced && (millis() - waitStart < 8000)) {
+    while (!ntpSynced && (millis() - waitStart < 15000)) { // 15s for mobile hotspots
       struct tm timeinfo;
       if (getLocalTime(&timeinfo, 1000)) {
          ntpSynced = true;
+         char tsBuf[32];
+         strftime(tsBuf, sizeof(tsBuf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+         Serial.printf("[NTP] Synced: %s\n", tsBuf);
       }
-      syncPct = 10 + ((millis() - waitStart) / 100) % 80;
+      syncPct = 10 + ((millis() - waitStart) / 188) % 80;
     }
     
     if (ntpSynced) {
@@ -1363,10 +1383,12 @@ void setup() {
     } else {
       syncPct = 100;
       syncState = TASK_FAILED;
+      Serial.println("[NTP] SYNC FAILED — timed out after 10s");
     }
   } else {
     syncState = TASK_FAILED;
     syncPct = 100;
+    Serial.println("[NTP] Skipped — no WiFi");
   }
 
 
