@@ -1281,6 +1281,7 @@ void setup() {
     strncpy(WIFI_NETS[i].ssid, s.c_str(), 32); WIFI_NETS[i].ssid[32] = '\0';
     strncpy(WIFI_NETS[i].pass, p.c_str(), 64); WIFI_NETS[i].pass[64] = '\0';
   }
+  prefs.end(); // !! Close so web-server task Preferences handles can open cleanly
 
   wifiStartMs = millis();
   unsigned long wifiAttemptStart = millis();
@@ -1339,12 +1340,11 @@ void setup() {
   }
 
 
-  // 3. SYNC TASK
+  // 3. SYNC TASK — NTP (WiFi still connected here)
   if (wifiConnected) {
     syncState = TASK_RUNNING;
     syncPct = 0;
 
-    
     configTime(GMT_OFFSET_S, DST_OFFSET_S, NTP_SERVER);
     
     unsigned long waitStart = millis();
@@ -1370,11 +1370,10 @@ void setup() {
   }
 
 
-  // 4. BLE TASK
+  // 4. BLE TASK — shut down WiFi radio first to free radio for BLE
   bleState = TASK_RUNNING;
   blePct = 0;
 
-  
   WiFi.disconnect(true);
   blePct = 25;
   delay(100);
@@ -1526,22 +1525,8 @@ void loop() {
     if (con) beepConnect(); else beepDisconnect();
   }
 
-  // ── BACKGROUND NTP TIME SYNC ──────────────────────────────
-  if (!ntpSynced) {
-    bool timedOut = (millis() - wifiStartMs > 30000UL);
-    if (WiFi.status() == WL_CONNECTED) {
-      configTime(GMT_OFFSET_S, DST_OFFSET_S, NTP_SERVER);
-      struct tm timeinfo;
-      if (getLocalTime(&timeinfo, 100)) {
-        ntpSynced = true;
-        timedOut  = true;  // trigger shutdown below
-      }
-    }
-    if (timedOut) {
-      WiFi.disconnect(true);
-      WiFi.mode(WIFI_OFF);  // free radio for BLE — no matter what
-    }
-  }
+  // NTP was fully resolved during setup() before WiFi was shut down.
+  // No background NTP loop needed — ntpSynced is already set correctly.
 
   // ── Input Manager ──
   LogicalEvent ev = SystemInput_Update();
