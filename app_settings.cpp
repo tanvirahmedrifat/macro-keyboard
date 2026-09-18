@@ -17,6 +17,14 @@ void AppSettings_Init() {
 }
 
 void AppSettings_Update() {
+    // Check if web dashboard requested a reboot (safe to do from main task)
+    if (WebServer_RebootRequested()) {
+        oled.clearDisplay();
+        centered("REBOOTING...", 28);
+        oled.display();
+        delay(800);
+        ESP.restart();
+    }
     // Redraw settings every 500ms to keep display fresh (handles status changes, QR)
     static unsigned long lastDraw = 0;
     unsigned long now = millis();
