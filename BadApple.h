@@ -63,6 +63,7 @@ static void putPixels(uint8_t c, int32_t len, bool& abortFlag) {
             if (anyBtnPressed()) { abortFlag = true; return; }
             delay(1);
           }
+          delay(1); // Unconditionally feed the FreeRTOS Watchdog to prevent crash
           lastRefresh = millis();
         }
       }
