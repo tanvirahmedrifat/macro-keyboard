@@ -5,7 +5,8 @@
 #include "heatshrink_decoder.h"
 
 // Allocate memory for the decoder (20 byte header + 4096 byte flexible array)
-static uint8_t hsd_mem[sizeof(heatshrink_decoder) + (1 << 11) + 2048];
+// MUST be 4-byte aligned to prevent ESP32 LoadStoreAlignment exceptions!
+alignas(4) static uint8_t hsd_mem[sizeof(heatshrink_decoder) + (1 << 11) + 2048];
 static heatshrink_decoder& hsd = *(heatshrink_decoder*)hsd_mem;
 static int16_t curr_x = 0;
 static int16_t curr_y = 0;
@@ -144,7 +145,11 @@ void playBadApple(Adafruit_SSD1306* disp1, Adafruit_SSD1306* disp2) {
     size_t toSink = filesize - srcHead;
     if (toSink > 2048) toSink = 2048;
 
-    memcpy_P(compbuf, &bad_apple_video[srcHead], toSink);
+    // CRITICAL: ESP32 crashes if memcpy tries to do a 32-bit read from an
+    // unaligned Flash (DROM) address. We MUST use byte-wise pgm_read_byte.
+    for (size_t i = 0; i < toSink; i++) {
+      compbuf[i] = pgm_read_byte(&bad_apple_video[srcHead + i]);
+    }
 
     size_t sinkHead = 0;
     while(toSink > 0) {
