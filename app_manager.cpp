@@ -113,6 +113,12 @@ void AppManager_HandleEvent(LogicalEvent ev) {
     // Wake display on any action
     resetIdle();
 
+    // ── Boot Menu: highest priority — swallow all events before apps see them ──
+    if (inBootMenu) {
+        BootMenu_HandleInput(ev);
+        return;
+    }
+
     // ── Layer 2 (WiFi Analyzer) and Layer 9 (Ping Monitor): forward all events, including BACKSPACE_HOLD_2S
     // Prevents global shortcuts (display cycle, Bad Apple) from firing inside the app.
     if (activeLayer == 2 || activeLayer == 9) {
@@ -131,128 +137,98 @@ void AppManager_HandleEvent(LogicalEvent ev) {
 
     switch (ev) {
         case EV_UP_TAP:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepTap();
-                if (activeLayer == 1) AppIosMacro_Btn1_Tap();
-                else if (activeLayer == 3) AppNokia_Btn1_Tap();
-                else if (activeLayer == 4) AppMedia_Btn1_Tap();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-                else if (activeLayer == 8) AppTester_Btn1_Tap();
-            }
+            beepTap();
+            if (activeLayer == 1) AppIosMacro_Btn1_Tap();
+            else if (activeLayer == 3) AppNokia_Btn1_Tap();
+            else if (activeLayer == 4) AppMedia_Btn1_Tap();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
+            else if (activeLayer == 8) AppTester_Btn1_Tap();
             break;
             
         case EV_UP_HOLD:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepHoldReady();
-                if (activeLayer == 1) AppIosMacro_Btn1_Hold();
-                else if (activeLayer == 3) AppNokia_Btn1_Hold();
-                else if (activeLayer == 4) AppMedia_Btn1_Hold();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-            }
+            beepHoldReady();
+            if (activeLayer == 1) AppIosMacro_Btn1_Hold();
+            else if (activeLayer == 3) AppNokia_Btn1_Hold();
+            else if (activeLayer == 4) AppMedia_Btn1_Hold();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
             break;
             
         case EV_DOWN_TAP:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepTap();
-                if (activeLayer == 1) AppIosMacro_Btn2_Tap();
-                else if (activeLayer == 3) AppNokia_Btn2_Tap();
-                else if (activeLayer == 4) AppMedia_Btn2_Tap();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-                else if (activeLayer == 8) AppTester_Btn2_Tap();
-            }
+            beepTap();
+            if (activeLayer == 1) AppIosMacro_Btn2_Tap();
+            else if (activeLayer == 3) AppNokia_Btn2_Tap();
+            else if (activeLayer == 4) AppMedia_Btn2_Tap();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
+            else if (activeLayer == 8) AppTester_Btn2_Tap();
             break;
             
         case EV_DOWN_HOLD:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepHoldReady();
-                if (activeLayer == 1) AppIosMacro_Btn2_Hold();
-                else if (activeLayer == 3) AppNokia_Btn2_Hold();
-                else if (activeLayer == 4) AppMedia_Btn2_Hold();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-            }
+            beepHoldReady();
+            if (activeLayer == 1) AppIosMacro_Btn2_Hold();
+            else if (activeLayer == 3) AppNokia_Btn2_Hold();
+            else if (activeLayer == 4) AppMedia_Btn2_Hold();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
             break;
             
         case EV_LEFT_TAP:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepTap();
-                if (activeLayer == 1) AppIosMacro_Btn3_Tap();
-                else if (activeLayer == 3) AppNokia_Btn3_Tap();
-                else if (activeLayer == 4) AppMedia_Btn3_Tap();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-                else if (activeLayer == 8) AppTester_Btn3_Tap();
-            }
+            beepTap();
+            if (activeLayer == 1) AppIosMacro_Btn3_Tap();
+            else if (activeLayer == 3) AppNokia_Btn3_Tap();
+            else if (activeLayer == 4) AppMedia_Btn3_Tap();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
+            else if (activeLayer == 8) AppTester_Btn3_Tap();
             break;
             
         case EV_LEFT_HOLD:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepHoldReady();
-                if (activeLayer == 1) AppIosMacro_Btn3_Hold();
-                else if (activeLayer == 3) AppNokia_Btn3_Hold();
-                else if (activeLayer == 4) AppMedia_Btn3_Hold();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-            }
+            beepHoldReady();
+            if (activeLayer == 1) AppIosMacro_Btn3_Hold();
+            else if (activeLayer == 3) AppNokia_Btn3_Hold();
+            else if (activeLayer == 4) AppMedia_Btn3_Hold();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
             break;
             
         case EV_RIGHT_TAP:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepTap();
-                if (activeLayer == 1) AppIosMacro_Btn4_Tap();
-                else if (activeLayer == 3) AppNokia_Btn4_Tap();
-                else if (activeLayer == 4) AppMedia_Btn4_Tap();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-                else if (activeLayer == 8) AppTester_Btn4_Tap();
-            }
+            beepTap();
+            if (activeLayer == 1) AppIosMacro_Btn4_Tap();
+            else if (activeLayer == 3) AppNokia_Btn4_Tap();
+            else if (activeLayer == 4) AppMedia_Btn4_Tap();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
+            else if (activeLayer == 8) AppTester_Btn4_Tap();
             break;
             
         case EV_RIGHT_HOLD:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepHoldReady();
-                if (activeLayer == 1) AppIosMacro_Btn4_Hold();
-                else if (activeLayer == 3) AppNokia_Btn4_Hold();
-                else if (activeLayer == 4) AppMedia_Btn4_Hold();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-            }
+            beepHoldReady();
+            if (activeLayer == 1) AppIosMacro_Btn4_Hold();
+            else if (activeLayer == 3) AppNokia_Btn4_Hold();
+            else if (activeLayer == 4) AppMedia_Btn4_Hold();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
             break;
             
         case EV_CENTER_TAP:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepTap();
-                if (activeLayer == 3) AppNokia_Btn5_Tap();
-                else if (activeLayer == 6) AppGames_HandleInput(ev);
-                else if (activeLayer == 7) AppSettings_HandleInput(ev);
-                else if (activeLayer == 8) AppTester_Btn5_Tap();
-            }
+            beepTap();
+            if (activeLayer == 3) AppNokia_Btn5_Tap();
+            else if (activeLayer == 6) AppGames_HandleInput(ev);
+            else if (activeLayer == 7) AppSettings_HandleInput(ev);
+            else if (activeLayer == 8) AppTester_Btn5_Tap();
             break;
             
         case EV_CENTER_HOLD:
-            if (activeLayer == 0) BootMenu_HandleInput(ev);
-            else {
-                beepHoldReady();
-                dispState = (dispState + 1) % 4; // 0=Both, 1=D1, 2=D2, 3=Off
-                setDisplays();
-                if (dispState == 0) { drawAction(">> Both ON"); }
-                else if (dispState == 1) { drawAction(">> D1 ON"); }
-                else if (dispState == 2) { drawAction(">> D2 ON"); }
-                else if (dispState == 3) { drawAction(">> Displays OFF"); }
-                resetIdle();
-            }
+            beepHoldReady();
+            dispState = (dispState + 1) % 4; // 0=Both, 1=D1, 2=D2, 3=Off
+            setDisplays();
+            if (dispState == 0) { drawAction(">> Both ON"); }
+            else if (dispState == 1) { drawAction(">> D1 ON"); }
+            else if (dispState == 2) { drawAction(">> D2 ON"); }
+            else if (dispState == 3) { drawAction(">> Displays OFF"); }
+            resetIdle();
             break;
             
         case EV_BACKSPACE_HOLD_2S:
@@ -274,3 +250,4 @@ void AppManager_HandleEvent(LogicalEvent ev) {
             break;
     }
 }
+
