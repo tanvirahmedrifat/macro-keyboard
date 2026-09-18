@@ -1517,6 +1517,8 @@ void loop() {
     AppManager_HandleEvent(ev);
   }
 
+  if (macroAborted) goto ABORT_MACRO;
+
   tickIdle(); // MUST render displays and manage sleep timer
   return; // DO NOT fall through to ABORT_MACRO
 

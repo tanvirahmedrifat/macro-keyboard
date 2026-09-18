@@ -4,7 +4,7 @@ int t9Mode = 0; // 0=abc, 1=ABC, 2=123
 char t9LastKey = 0;
 int t9TapCount = 0;
 unsigned long t9LastTime = 0;
-String t9Buffer = "";
+char t9Buffer[21] = {0};
 const unsigned long T9_TIMEOUT = 800;
 
 #define MDELAY(x) if(macroDelay(x)) { ble.releaseAll(); resetIdle(); return; }
@@ -23,9 +23,8 @@ void d1DrawT9() {
   oled.setTextSize(2);
   oled.setCursor(0, 20);
   
-  String text = t9Buffer;
-  if ((millis() / 400) % 2 == 0) text += "_";
-  oled.print(text.c_str());
+  oled.print(t9Buffer);
+  if ((millis() / 400) % 2 == 0) oled.print("_");
   
   oled.display();
 }
@@ -98,9 +97,8 @@ void handleT9KeyPress(char mKey) {
   
   if (mKey == '*') {
     t9LastKey = 0;
-    if (t9Buffer.length() > 0) {
-      t9Buffer.remove(t9Buffer.length() - 1);
-    }
+    int len = strlen(t9Buffer);
+    if (len > 0) t9Buffer[len - 1] = '\0';
     ble.tap(KEY_BACKSPACE);
     beepTap();
     resetIdle();
@@ -115,7 +113,8 @@ void handleT9KeyPress(char mKey) {
   if (mKey == t9LastKey && (now - t9LastTime) < T9_TIMEOUT) {
     t9TapCount++;
     if (t9TapCount >= strlen(seq)) t9TapCount = 0;
-    if (t9Buffer.length() > 0) t9Buffer.remove(t9Buffer.length() - 1);
+    int len = strlen(t9Buffer);
+    if (len > 0) t9Buffer[len - 1] = '\0';
     ble.tap(KEY_BACKSPACE);
   } else {
     t9LastKey = mKey;
@@ -124,8 +123,15 @@ void handleT9KeyPress(char mKey) {
   
   t9LastTime = now;
   char c = seq[t9TapCount];
-  t9Buffer += c;
-  if (t9Buffer.length() > 20) t9Buffer = t9Buffer.substring(t9Buffer.length() - 20);
+  int len = strlen(t9Buffer);
+  if (len < 20) {
+    t9Buffer[len] = c;
+    t9Buffer[len + 1] = '\0';
+  } else {
+    memmove(t9Buffer, t9Buffer + 1, 19);
+    t9Buffer[19] = c;
+    t9Buffer[20] = '\0';
+  }
   
   if (c == ' ') ble.tap(KEY_SPACE);
   else {
@@ -163,7 +169,7 @@ void AppNokia_Btn1_Hold() {
 
 void AppNokia_Btn1_Tap() {
   drawAction(">> up arrow");
-  t9Buffer = "";
+  t9Buffer[0] = '\0';
   ble.tap(KEY_UP);
   MDELAY(200);
 }
@@ -176,7 +182,7 @@ void AppNokia_Btn2_Hold() {
 
 void AppNokia_Btn2_Tap() {
   drawAction(">> down arrow");
-  t9Buffer = "";
+  t9Buffer[0] = '\0';
   ble.tap(KEY_DOWN);
   MDELAY(200);
 }
@@ -191,7 +197,7 @@ void AppNokia_Btn3_Hold() {
 
 void AppNokia_Btn3_Tap() {
   drawAction(">> left arrow");
-  t9Buffer = "";
+  t9Buffer[0] = '\0';
   ble.tap(KEY_LEFT);
   MDELAY(200);
 }
@@ -204,7 +210,7 @@ void AppNokia_Btn4_Hold() {
 
 void AppNokia_Btn4_Tap() {
   drawAction(">> right arrow");
-  t9Buffer = "";
+  t9Buffer[0] = '\0';
   ble.tap(KEY_RIGHT);
   MDELAY(200);
 }
@@ -213,7 +219,7 @@ void AppNokia_Btn5_Tap() {
   if (t9LastKey != 0) {
     t9LastKey = 0; // Commit current key
   }
-  t9Buffer = ""; // Clear buffer on Enter to prevent text scrolling off-screen
+  t9Buffer[0] = '\0'; // Clear buffer on Enter to prevent text scrolling off-screen
   drawAction(">> enter");
   ble.tap(KEY_RETURN);
   MDELAY(200);
