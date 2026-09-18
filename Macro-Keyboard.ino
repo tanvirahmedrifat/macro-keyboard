@@ -1133,38 +1133,31 @@ void updateBootMenu() {
     drawMenuList();
   }
 
-  // Input Handling
-  static unsigned long lastBtnTime = 0;
-  if (now - lastBtnTime > 200) {
-    if (digitalRead(PIN1) == LOW) { // UP
-      beepTap();
-      menuSel = (menuSel - 1 + MENU_COUNT) % MENU_COUNT;
-      resetIdle();
-      lastBtnTime = now;
-    } else if (digitalRead(PIN2) == LOW) { // DOWN
-      beepTap();
-      menuSel = (menuSel + 1) % MENU_COUNT;
-      resetIdle();
-      lastBtnTime = now;
-    } else if (digitalRead(PIN5) == LOW) { // SELECT
-      beepDone();
-      AppManager_SwitchApp(menuLayers[menuSel]);
-      
-      // Removed redundant legacy mapping
-      
-      // Force clear screens so normal apps redraw cleanly
-      oled.clearDisplay(); oled.display();
-      oled2.clearDisplay(); oled2.display();
-      
-      resetIdle();
-      lastBtnTime = now + 1000;
-      
-      // Wait for PIN5 to be physically released
-      while(digitalRead(PIN5) == LOW) delay(10);
-    } else if (digitalRead(PIN3) == LOW || digitalRead(PIN4) == LOW) {
-      // LEFT/RIGHT wake up screensaver but do nothing else in vertical menu.
-      resetIdle();
-    }
+  // Input Handling is now event-driven and routed through AppManager_HandleEvent -> BootMenu_HandleInput
+}
+
+void BootMenu_HandleInput(LogicalEvent ev) {
+  if (ev == EV_UP_TAP || ev == EV_UP_HOLD) {
+    beepTap();
+    menuSel = (menuSel - 1 + MENU_COUNT) % MENU_COUNT;
+    resetIdle();
+  } else if (ev == EV_DOWN_TAP || ev == EV_DOWN_HOLD) {
+    beepTap();
+    menuSel = (menuSel + 1) % MENU_COUNT;
+    resetIdle();
+  } else if (ev == EV_CENTER_TAP) {
+    beepDone();
+    AppManager_SwitchApp(menuLayers[menuSel]);
+    
+    // Force clear screens so normal apps redraw cleanly
+    oled.clearDisplay(); oled.display();
+    oled2.clearDisplay(); oled2.display();
+    
+    resetIdle();
+    // No need to wait for physical release because EV_CENTER_TAP only fires upon release!
+  } else if (ev == EV_LEFT_TAP || ev == EV_RIGHT_TAP || ev == EV_LEFT_HOLD || ev == EV_RIGHT_HOLD) {
+    // LEFT/RIGHT wake up screensaver but do nothing else in vertical menu.
+    resetIdle();
   }
 }
 

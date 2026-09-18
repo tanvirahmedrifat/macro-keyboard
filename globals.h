@@ -46,7 +46,6 @@ void d2L(int y, const char* text);
 void d2R(int y, const char* text);
 void getTimeCStr(char* buf);
 
-
 extern int dispState;
 
 // Macro Helpers
