@@ -7,6 +7,10 @@
 #include <Adafruit_SSD1306.h>
 #include <WiFi.h>
 
+struct WifiCred { char ssid[33]; char pass[65]; };
+extern WifiCred WIFI_NETS[10];
+extern int WIFI_NET_COUNT;
+
 #define SCREEN_W   128
 #define SCREEN_H    64
 

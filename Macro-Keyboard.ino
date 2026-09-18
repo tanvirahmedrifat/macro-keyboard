@@ -17,10 +17,12 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <WiFi.h>
-#include <time.h>
+#include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <esp_wifi.h>
+#include "app_manager.h"
+#include <Preferences.h>
+#include <qrcode.h>
 #include "names_data.h"
 #include "BadApple.h"
 #include "menu_icons.h"
@@ -97,16 +99,10 @@ bool wasCon = false;
 
 
 
-// ── WIFI & NTP (fallback list — tried in order) ────────────────────────
-struct WifiCred { const char* ssid; const char* pass; };
-const WifiCred WIFI_NETS[] = {
-  { "Faysal",             "Rifat007"    },  // Primary
-  { "Raha",               "rafsan25631" },  // Fallback 1
-  { "Tanvir Ahmed Rifat", "Rifat#007"   },  // Fallback 2
-  { "D LAB",              "ent@1981#"   },  // Fallback 3
-  { "UCEP_AUTO",          "auto_!@ukwf#$524" }, // Fallback 4
-};
-const int WIFI_NET_COUNT = 5;
+// ── WIFI & NTP (dynamic list from Preferences) ────────────────────────
+WifiCred WIFI_NETS[10]; // Max 10 networks
+int WIFI_NET_COUNT = 0;
+Preferences prefs;
 const char* WIFI_SSID = WIFI_NETS[0].ssid; // used for display only (updated at runtime)
 
 const char* NTP_SERVER   = "pool.ntp.org";
@@ -1259,44 +1255,64 @@ void setup() {
   wifiPct = 0;
 
 
-  wifiStartMs = millis();
-  WIFI_SSID = WIFI_NETS[0].ssid;
-  WiFi.begin(WIFI_NETS[0].ssid, WIFI_NETS[0].pass);
+  // Initialize Preferences and load WiFi configs
+  prefs.begin("macro-kb", false);
+  silentMode = prefs.getBool("silentMode", false);
+  sleepTimeoutMs = prefs.getULong("sleepTimeout", 5UL * 60UL * 1000UL);
+  
+  WIFI_NET_COUNT = prefs.getInt("wifi_cnt", 0);
+  for (int i = 0; i < WIFI_NET_COUNT && i < 10; i++) {
+    String s = prefs.getString(("ssid_" + String(i)).c_str(), "");
+    String p = prefs.getString(("pass_" + String(i)).c_str(), "");
+    strncpy(WIFI_NETS[i].ssid, s.c_str(), 32); WIFI_NETS[i].ssid[32] = '\0';
+    strncpy(WIFI_NETS[i].pass, p.c_str(), 64); WIFI_NETS[i].pass[64] = '\0';
+  }
 
+  wifiStartMs = millis();
   unsigned long wifiAttemptStart = millis();
   bool wifiConnected = false;
 
-  // Try primary
-  while (millis() - wifiAttemptStart < 12000) {
-    if (WiFi.status() == WL_CONNECTED) {
-       wifiConnected = true;
-       break;
-    }
-    wifiPct = 10 + ((millis() - wifiAttemptStart) / 150) % 80;
+  if (WIFI_NET_COUNT > 0) {
+    WIFI_SSID = WIFI_NETS[0].ssid;
+    WiFi.begin(WIFI_NETS[0].ssid, WIFI_NETS[0].pass);
 
-    delay(10);
+    // Try primary
+    while (millis() - wifiAttemptStart < 12000) {
+      if (WiFi.status() == WL_CONNECTED) {
+         wifiConnected = true;
+         break;
+      }
+      wifiPct = 10 + ((millis() - wifiAttemptStart) / 150) % 80;
+      delay(10);
+    }
+
+    // Try fallbacks
+    if (!wifiConnected) {
+      for (int ni = 1; ni < WIFI_NET_COUNT; ni++) {
+        WiFi.disconnect(true);
+        delay(100);
+        WIFI_SSID = WIFI_NETS[ni].ssid;
+        WiFi.begin(WIFI_NETS[ni].ssid, WIFI_NETS[ni].pass);
+        
+        unsigned long tryStart = millis();
+        while (millis() - tryStart < 8000) {
+          if (WiFi.status() == WL_CONNECTED) {
+            wifiConnected = true;
+            break;
+          }
+          wifiPct = 10 + ((millis() - tryStart) / 100) % 80;
+          delay(10);
+        }
+        if (wifiConnected) break;
+      }
+    }
   }
 
-  // Try fallbacks
   if (!wifiConnected) {
-    for (int ni = 1; ni < WIFI_NET_COUNT; ni++) {
-      WiFi.disconnect(true);
-      delay(100);
-      WIFI_SSID = WIFI_NETS[ni].ssid;
-      WiFi.begin(WIFI_NETS[ni].ssid, WIFI_NETS[ni].pass);
-      
-      unsigned long tryStart = millis();
-      while (millis() - tryStart < 8000) {
-        if (WiFi.status() == WL_CONNECTED) {
-          wifiConnected = true;
-          break;
-        }
-        wifiPct = 10 + ((millis() - tryStart) / 100) % 80;
-
-        delay(10);
-      }
-      if (wifiConnected) break;
-    }
+    // Start SoftAP for Setup
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP("Macro-Keyboard", "");
+    WIFI_SSID = "Macro-Keyboard (AP)";
   }
 
   if (wifiConnected) {
