@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Pilot Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="lg-aurora-bg"></div>
+
+    <div class="dashboard">
+        <!-- Sidebar Controls -->
+        <div class="sidebar">
+            <div class="liquid-glass lg-card" style="padding-bottom: 24px;">
+                <h2 style="display:flex; align-items:center; justify-content:space-between; margin:0;">ESP32 Connection <span id="espStatus" class="status-indicator red"></span></h2>
+            </div>
+
+            <div class="liquid-glass lg-card">
+                <h2>Virtual Macro Pad</h2>
+                <div class="grid-buttons">
+                    <button class="lg-button" id="btn-macro-1" onclick="sendTrigger('1')">1 (Names)</button>
+                    <button class="lg-button" id="btn-macro-2" onclick="sendTrigger('2')">2 (Form)</button>
+                    <button class="lg-button" id="btn-macro-3" onclick="sendTrigger('3')">3 (User)</button>
+                    <button class="lg-button" id="btn-macro-4" onclick="sendTrigger('4')">4 (Pwd)</button>
+                    <button class="lg-button" id="btn-macro-5" onclick="sendTrigger('5')">5 (Notes)</button>
+                    <button class="lg-button" id="btn-macro-6" onclick="sendTrigger('6')">6 (Clear)</button>
+                </div>
+            </div>
+
+            <div class="liquid-glass lg-card">
+                <h2 style="display:flex; align-items:center; justify-content:space-between;">Auto-Pilot Controls <span id="screenStatus" class="status-indicator red"></span></h2>
+                <button class="lg-button" id="btnShare" style="width:100%; margin-bottom: 10px;">
+                    📱 Select UxPlay Window
+                </button>
+                <button class="lg-button" id="btnAutoPilot" style="width:100%;">
+                    ▶ Start Auto-Pilot
+                </button>
+            </div>
+
+            <div class="liquid-glass lg-card" style="flex: 1;">
+                <h2>System Log</h2>
+                <div id="statusLog"></div>
+            </div>
+        </div>
+        <!-- Main Vision Feed -->
+        <div class="liquid-glass lg-card" style="padding: 12px; height: 100%;">
+            <div class="vision-container">
+                <video id="videoFeed" autoplay playsinline muted></video>
+                <canvas id="overlayCanvas"></canvas>
+                <canvas id="captureCanvas" style="display:none;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

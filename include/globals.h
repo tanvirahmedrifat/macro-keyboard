@@ -8,7 +8,7 @@
 #include <WiFi.h>
 
 struct WifiCred { char ssid[33]; char pass[65]; };
-extern WifiCred WIFI_NETS[10];
+extern WifiCred WIFI_NETS[50];
 extern int WIFI_NET_COUNT;
 
 #define SCREEN_W   128
@@ -35,6 +35,7 @@ extern bool inBootMenu;
 extern bool ntpSynced;
 extern bool oledSleeping;
 extern bool silentMode;
+extern bool oled2Active;
 extern unsigned long sleepTimeoutMs;
 
 // Display Utilities

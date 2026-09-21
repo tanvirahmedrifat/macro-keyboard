@@ -3,52 +3,57 @@
 // Macro to safely abort and return early
 #define MDELAY(x) if(macroDelay(x)) { ble.releaseAll(); resetIdle(); return; }
 
-void AppIosMacro_Btn1_Hold() {
+void AppIosMacro_Key3() {
           // firstname + lastname + 2-3 random digits, all lowercase
           int digits = random(2, 4);
           String suffix = "";
           for (int i = 0; i < digits; i++) suffix += String(random(0, 10));
           String user = firstName() + lastName() + suffix;
           drawAction(">> typing username..");
-          MDELAY(random(1000, 3000));
+          MDELAY(random(600, 1200));   // Short hesitation before typing username
           humanType(user.c_str());
-          MDELAY(random(1000, 3000));
+          MDELAY(random(800, 1500));   // Natural pause to check username before Enter
           humanTap(KEY_RETURN);
           MDELAY(random(150, 300));
           beepDone();
           drawAction((">> done: " + user).c_str());
           MDELAY(1200);
         }
-void AppIosMacro_Btn1_Tap() {
+void AppIosMacro_Key1() {
           // Short tap: first name + Enter, then last name + Enter
           String fn = firstName();
           String ln = lastName();
           drawAction(">> typing first name");
-          MDELAY(random(1000, 3000));
+          MDELAY(random(800, 1500));   // Initial hesitation before starting
+          
+          // Press tab to select the first name box before typing
+          humanTap(KEY_TAB);
+          MDELAY(random(300, 600));
+          
           humanType(fn.c_str());
-          MDELAY(random(1000, 3000));  // human processing delay before Enter
-          humanTap(KEY_RETURN);
-          MDELAY(random(1000, 3000));   // pause between fields
+          MDELAY(random(200, 500));    // Quick natural pause before hitting Tab
+          humanTap(KEY_TAB);
+          MDELAY(random(300, 600));    // Very short pause to verify focus jumped
           drawAction(">> typing last name.");
           humanType(ln.c_str());
-          MDELAY(random(1000, 3000));  // longer human processing delay before final Enter
+          MDELAY(random(800, 1600));   // Look over the form before hitting Submit
           humanTap(KEY_RETURN);
           MDELAY(random(150, 300));
           beepDone();
         }
-void AppIosMacro_Btn2_Hold() {
+void AppIosMacro_Key0() {
           newProfile();
           drawAction(">> new profile!"); // updates both displays
           beepNewProfile();
           MDELAY(1200);
         }
-void AppIosMacro_Btn2_Tap() {
+void AppIosMacro_Key2() {
           // Short tap: Form filling macro — human-paced
           drawAction(">> running macro...");
 
         // ── MONTH DROPDOWN ───────────────────────────────────────
         // Tab to Month, pause while eyes land on field
-        MDELAY(random(1000, 3000));
+        MDELAY(random(300, 600));   // Quick flow from previous field
         humanTap(KEY_TAB);
         MDELAY(random(600, 1400));
 
@@ -67,28 +72,28 @@ void AppIosMacro_Btn2_Tap() {
 
         // Confirm month selection
         humanTap(KEY_RETURN);
-        MDELAY(random(900, 2200));  // human glances at result, then moves on
+        MDELAY(random(600, 1200));  // human glances at result, then moves on
 
         // ── DAY FIELD ────────────────────────────────────────────
-        MDELAY(random(1000, 3000));
+        MDELAY(random(300, 600));   // Quick flow to next field
         humanTap(KEY_TAB);
         MDELAY(random(400, 800));   // eyes jump to Day field
 
         int day = random(1, 29);   // 1–28 safe across all months
         humanType(String(day).c_str());
-        MDELAY(random(1000, 2500)); // human reads back what they typed
+        MDELAY(random(500, 1000));  // human reads back short day number
 
         // ── YEAR FIELD ───────────────────────────────────────────
-        MDELAY(random(1000, 3000));
+        MDELAY(random(300, 600));   // Quick flow to next field
         humanTap(KEY_TAB);
         MDELAY(random(400, 700));   // eyes move to Year
 
         int year = random(1991, 2007);  // 1991–2006, ages 20–35 in 2026
         humanType(String(year).c_str());
-        MDELAY(random(1000, 2500)); // verify year before leaving field
+        MDELAY(random(600, 1200));  // verify 4-digit year before leaving field
 
         // ── GENDER DROPDOWN ──────────────────────────────────────
-        MDELAY(random(1000, 3000));
+        MDELAY(random(300, 600));   // Quick flow to next field
         humanTap(KEY_TAB);
         MDELAY(random(700, 1600));  // eyes travel to Gender, brief hesitation
 
@@ -112,7 +117,7 @@ void AppIosMacro_Btn2_Tap() {
         drawAction(">> macro done!");
           MDELAY(1200);
         }
-void AppIosMacro_Btn3_Hold() {
+void AppIosMacro_Key5() {
           // ── BTN_HOLD_MS: Save to Notes Macro ──
           drawAction(">> notes macro");
   
@@ -144,6 +149,11 @@ void AppIosMacro_Btn3_Hold() {
           drawPasswordTyping();
           MDELAY(300);
   
+          // ── Shift-Breaker: Defeat OS Sticky Shift ──
+          ble.tap(KEY_SPACE, 0);
+          ble.tap(KEY_BACKSPACE, 0);
+          MDELAY(50);
+
           // Type password (fast, inside private Notes)
           ble.print(pwd);
           MDELAY(300);
@@ -175,13 +185,19 @@ void AppIosMacro_Btn3_Hold() {
           d2HoldPwd = true; // Hold password on D2
           MDELAY(900);
         }
-void AppIosMacro_Btn3_Tap() {
+void AppIosMacro_Key4() {
           // ── TAP: human-speed password + Enter ──
           drawAction(">> typing pwd..");
         MDELAY(random(600, 1200));  // pre-type hesitation
         drawPasswordTyping();       // show full password on both screens
+        
+        // ── Shift-Breaker: Defeat OS Sticky Shift ──
+        humanTap(KEY_SPACE);
+        humanTap(KEY_BACKSPACE);
+        MDELAY(random(50, 150));
+
         humanType(pwd);             // type at human speed while it’s visible
-        MDELAY(random(1000, 2000)); // re-read pause before Enter
+        MDELAY(random(800, 1400));  // natural re-read pause before Enter
         humanTap(KEY_RETURN);
         MDELAY(random(150, 300));
         beepDone();
@@ -189,7 +205,7 @@ void AppIosMacro_Btn3_Tap() {
           d2HoldPwd = true; // Hold password on D2
           MDELAY(900);
         }
-void AppIosMacro_Btn4_Hold() {
+void AppIosMacro_Key7() {
           // ── BTN_HOLD_MS: Random USA Time Zone Macro ──
           drawAction(">> time zone..");
         
@@ -251,7 +267,7 @@ void AppIosMacro_Btn4_Hold() {
           ble.tap(KEY_H, KEY_MOD_LGUI);
           MDELAY(400);
         }
-void AppIosMacro_Btn4_Tap() {
+void AppIosMacro_Key6() {
           // ── TAP: Clear History Spotlight Macro ──
           drawAction(">> searching..");
         
@@ -280,3 +296,35 @@ void AppIosMacro_Btn4_Tap() {
         drawAction(">> macro done!");
           MDELAY(800);
         }
+
+void AppIosMacro_HandleMatrix(char mKey) {
+    switch (mKey) {
+        case '1':
+            AppIosMacro_Key1(); // First name + last name
+            break;
+        case '2':
+            AppIosMacro_Key2(); // Birthdate/gender form
+            break;
+        case '0':
+            AppIosMacro_Key0(); // Generate new profile
+            break;
+        case '3':
+            AppIosMacro_Key3(); // Random username
+            break;
+        case '4':
+            AppIosMacro_Key4(); // Type password
+            break;
+        case '5':
+            AppIosMacro_Key5(); // Save to Notes
+            break;
+        case '6':
+            AppIosMacro_Key6(); // Clear History
+            break;
+        case '7':
+            AppIosMacro_Key7(); // Random USA Time Zone
+            break;
+        default:
+            break;
+    }
+}
+

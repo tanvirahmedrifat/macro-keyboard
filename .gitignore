@@ -1,0 +1,18 @@
+# PlatformIO build artifacts
+.pio/
+.pioenvs/
+
+# Python
+__pycache__/
+*.pyc
+
+# Tools
+tools/*.log
+
+# Test binaries
+test_fam
+test_sizeof
+
+# OS
+.DS_Store
+Thumbs.db

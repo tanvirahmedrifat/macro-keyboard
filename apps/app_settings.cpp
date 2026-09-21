@@ -158,7 +158,7 @@ void AppSettings_Draw1() {
 }
 
 void AppSettings_Draw2() {
-    oled2.clearDisplay();
+    if (!oled2Active) return; oled2.clearDisplay();
     oled2.setTextColor(SSD1306_WHITE);
     oled2.setTextSize(1);
     

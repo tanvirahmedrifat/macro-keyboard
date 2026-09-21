@@ -32,7 +32,7 @@ void d1DrawT9() {
 void d2DrawT9() {
   if (dispState == 1 || dispState == 3) return;
   
-  oled2.clearDisplay();
+  if (!oled2Active) return; oled2.clearDisplay();
   oled2.setTextColor(SSD1306_WHITE);
   oled2.setTextSize(1);
   

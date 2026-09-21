@@ -17,6 +17,8 @@ static uint32_t lastRefresh = 0;
 static Adafruit_SSD1306* d1 = nullptr;
 static Adafruit_SSD1306* d2 = nullptr;
 
+unsigned long videoStart = 0;
+
 // Inline button poll — any LOW pin = abort
 static inline bool anyBtnPressed() {
   return (digitalRead(12) == LOW || digitalRead(13) == LOW ||
@@ -42,30 +44,31 @@ static void putPixels(uint8_t c, int32_t len, bool& abortFlag) {
 
         // Check buttons at every row boundary (every 128 pixels).
         // This gives 64 checks per frame during pixel drawing.
-        if (anyBtnPressed()) { abortFlag = true; return; }
+        // if (anyBtnPressed()) {
+        //   delay(50);
+        //   if (anyBtnPressed()) { abortFlag = true; return; }
+        // }
 
         if(curr_y >= 64) {
           curr_y = 0;
 
-          // Check before display calls
-          if (anyBtnPressed()) { abortFlag = true; return; }
-
           if (d1) d1->display();
           if (d2) d2->display();
 
-          // Check after display calls.
-          // CRITICAL FIX: Both display() calls together take >33ms over I2C,
-          // meaning the frame-gap while-loop below was entered with elapsed>=33
-          // and its body NEVER executed. This check was the only one that never
-          // ran, making the abort completely unresponsive during playback.
-          if (anyBtnPressed()) { abortFlag = true; return; }
-
           // Frame-rate limiter: pad remaining time up to 33ms (30 fps)
           while((millis() - lastRefresh) < 33) {
-            if (anyBtnPressed()) { abortFlag = true; return; }
             delay(10);
           }
           delay(10); // Unconditionally feed the FreeRTOS Watchdog to prevent crash
+          
+          // Robust abort check: only allow aborting after the first 2 seconds of video
+          extern unsigned long videoStart;
+          if (millis() - videoStart > 2000) {
+            if (anyBtnPressed()) {
+              delay(50);
+              if (anyBtnPressed()) { abortFlag = true; return; }
+            }
+          }
           lastRefresh = millis();
         }
       }
@@ -115,11 +118,6 @@ void playBadApple(Adafruit_SSD1306* disp1, Adafruit_SSD1306* disp2) {
   d2 = disp2;
   bool abortFlag = false;
 
-  // Wait for the user to release the button that triggered this
-  // before starting, otherwise it will instantly abort!
-  while (anyBtnPressed()) { delay(10); }
-  delay(150); // CRITICAL: Wait for mechanical release bounce to settle!
-
   if (d1) { d1->clearDisplay(); d1->display(); }
   if (d2) { d2->clearDisplay(); d2->display(); }
 
@@ -139,6 +137,8 @@ void playBadApple(Adafruit_SSD1306* disp1, Adafruit_SSD1306* disp2) {
 
   const uint32_t filesize = bad_apple_len;
   uint32_t srcHead = 0;
+  
+  videoStart = millis();
 
   while(srcHead < filesize) {
     if (abortFlag) break;
@@ -178,10 +178,23 @@ void playBadApple(Adafruit_SSD1306* disp1, Adafruit_SSD1306* disp2) {
       } while (pres == HSDR_POLL_MORE && !abortFlag);
     }
     srcHead += sinkHead;
+    
+    // Robust abort check: only allow aborting after the first 2 seconds of video (to avoid instant aborts from the initial 5-second hold)
+    if (millis() - videoStart > 2000) {
+        if (anyBtnPressed()) {
+            delay(50);
+            if (anyBtnPressed()) { 
+                abortFlag = true; 
+                break; 
+            }
+        }
+    }
   }
 
   // Clear and wait for full button release
   if (d1) { d1->clearDisplay(); d1->display(); }
   if (d2) { d2->clearDisplay(); d2->display(); }
-  while (anyBtnPressed()) { delay(10); }
+  while (anyBtnPressed()) {
+    delay(10);
+  }
 }

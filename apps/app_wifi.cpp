@@ -29,7 +29,7 @@ volatile int deviceCount = 0;             // number of unique clients detected
 
 // ── WIFI ANALYZER MODE ────────────────────────────────────
 
-void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
+void IRAM_ATTR sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
   if (type == WIFI_PKT_MISC) return;
   wifi_promiscuous_pkt_t* pkt = (wifi_promiscuous_pkt_t*)buf;
   int pktLen = pkt->rx_ctrl.sig_len;
@@ -45,25 +45,32 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
   uint8_t fromDS = ((f[1] & 0x02) >> 1);
 
   // 802.11 infrastructure-mode address roles:
-  //   TO-DS=1, FROM-DS=0  (STA→AP):  addr2 = f+10  is the CLIENT STA MAC
-  //   FROM-DS=1, TO-DS=0  (AP→STA):  addr1 = f+4   is the CLIENT STA MAC
-  //
-  // Note: addr3 in the AP→STA case is the SA (source), which is the upstream
-  // gateway or internet server MAC — NOT a local client. Always use addr1 here.
-  uint8_t* mac;
-  if      ( toDS && !fromDS) mac = f + 10;   // STA→AP: addr2 = client
-  else if (!toDS &&  fromDS) mac = f + 4;    // AP→STA: addr1 = client (FIX: was f+16)
-  else return;                               // IBSS / WDS — skip
+  //   TO-DS=1, FROM-DS=0  (STA→AP):  addr1 = BSSID, addr2 = Client
+  //   FROM-DS=1, TO-DS=0  (AP→STA):  addr1 = Client, addr2 = BSSID
+  uint8_t* clientMac;
+  uint8_t* apMac;
+  
+  if (toDS && !fromDS) {
+    apMac = f + 4;         // addr1 is AP
+    clientMac = f + 10;    // addr2 is STA
+  } else if (!toDS && fromDS) {
+    clientMac = f + 4;     // addr1 is STA
+    apMac = f + 10;        // addr2 is AP
+  } else {
+    return;                // IBSS / WDS — skip
+  }
 
-  if (memcmp(mac, targetBSSID, 6) == 0) return;  // exclude the AP itself
-  if (mac[0] & 0x01) return;                     // exclude broadcast/multicast
+  // CRITICAL: Only count devices that are talking to OUR selected AP!
+  if (memcmp(apMac, targetBSSID, 6) != 0) return; 
+
+  if (clientMac[0] & 0x01) return; // exclude broadcast/multicast
 
   int cnt = deviceCount;                     // volatile snapshot
   if (cnt >= MAX_DEVICE_TRACK) return;
   for (int i = 0; i < cnt; i++) {
-    if (memcmp(deviceMACs[i], mac, 6) == 0) return; // already known
+    if (memcmp(deviceMACs[i], clientMac, 6) == 0) return; // already known
   }
-  memcpy(deviceMACs[cnt], mac, 6);           // store before bumping count
+  memcpy(deviceMACs[cnt], clientMac, 6);           // store before bumping count
   deviceCount = cnt + 1;
 }
 
@@ -202,6 +209,7 @@ void drawWifiTarget() {
 }
 
 void drawWifiDisplay2() {
+  if (!oled2Active) return;
   // Right safe zone: X=73–107 = 35px wide. Dead cols at 72 and 108.
   // Safe Y: 0–54. Size-1 char = 6×8px. Size-2 char = 12×16px.
   // Centering formula: X = 73 + max(0, (35 - textWidthPx) / 2)
@@ -351,60 +359,92 @@ void drawWifiDisplay2() {
   oled2.display();
 }
 
+// ── RENDERING OPTIMIZATION ─────────────────────────────────
+static bool needsRedraw = true;
+static int lastScanStatus = -99;
+static unsigned long rssiLastTick = 0;
+
 void updateWifiAnalyzer() {
   if (wifiView == 0) {
-    // Limit scanner redraw to ~15 FPS to massively optimize I2C bus bandwidth
-    if (millis() - wifiLastTick > 66) {
-      wifiLastTick = millis();
+    // 1. Scanner Mode (Async, only redraws on changes)
+    int n = WiFi.scanComplete();
+    if (n != lastScanStatus) {
+      lastScanStatus = n;
+      needsRedraw = true;
+    }
+    
+    if (needsRedraw) {
+      needsRedraw = false;
       drawWifiDisplay2();
       drawWifiScanner();
     }
-    return;
   }
-  
-  if (millis() - wifiLastTick >= 1000) {
-    wifiLastTick = millis();
+  else if (wifiView == 1) {
+    // 2. Target RSSI Mode (Fully Asynchronous, Non-Blocking)
+    int n = WiFi.scanComplete();
     
-    if (wifiView == 1) {
-      // Target RSSI Mode
-      int n = WiFi.scanNetworks(false, false, false, 100, targetChannel);
-      int currentRSSI = -100;
-      for (int i = 0; i < n; i++) {
-        if (WiFi.SSID(i) == targetSSID) {
-          currentRSSI = WiFi.RSSI(i);
-          break;
+    // Only process if the scan is finished (or failed)
+    if (n != WIFI_SCAN_RUNNING) {
+      if (millis() - rssiLastTick >= 1000) {
+        rssiLastTick = millis();
+        
+        int currentRSSI = -100;
+        if (n > 0) {
+          for (int i = 0; i < n; i++) {
+            if (WiFi.SSID(i) == targetSSID) {
+              currentRSSI = WiFi.RSSI(i);
+              break;
+            }
+          }
         }
+        
+        WiFi.scanDelete(); // Free previous scan memory
+        
+        // Shift graph left using highly optimized memmove
+        memmove(dbmHistory, dbmHistory + 1, GRAPH_W - 1);
+        dbmHistory[GRAPH_W - 1] = currentRSSI;
+        
+        needsRedraw = true;
+        
+        // Start next async scan targeted on this channel
+        WiFi.scanNetworks(true, false, false, 100, targetChannel);
       }
-      WiFi.scanDelete();
+    }
+    
+    if (needsRedraw) {
+      needsRedraw = false;
+      drawWifiDisplay2();
+      drawWifiTarget();
+    }
+  }
+  else if (wifiView == 2) {
+    // 3. Traffic Sniffer Mode (1-Second Windows)
+    if (millis() - wifiLastTick >= 1000) {
+      wifiLastTick = millis();
       
-      // Shift graph left
-      for (int i = 0; i < GRAPH_W - 1; i++) dbmHistory[i] = dbmHistory[i+1];
-      dbmHistory[GRAPH_W - 1] = currentRSSI;
-      
-    } else if (wifiView == 2) {
-      // Traffic Sniffer Mode
       int currentBytes = packetCount;
       packetCount = 0; // reset for next 1-second window
       
-      // Convert raw byte count to KB/s (1000ms window)
       rawKbps = currentBytes / 1024; // Keep raw for live big-number display
       
-      // Light smoothing ONLY for the graph line (30% old, 70% new)
-      // This keeps the graph visually stable while the big number is responsive
       int prevKbps = rawKbps;
       for (int i = GRAPH_W - 1; i >= 0; i--) {
         if (trafficHistory[i] != -1) { prevKbps = trafficHistory[i]; break; }
       }
       int smoothedKbps = (prevKbps * 1 + rawKbps * 2) / 3; // 33% old, 67% new
       
-      // Shift graph left and append smoothed value for graph rendering
-      for (int i = 0; i < GRAPH_W - 1; i++) trafficHistory[i] = trafficHistory[i+1];
+      // Shift graph left and append smoothed value
+      memmove(trafficHistory, trafficHistory + 1, (GRAPH_W - 1) * sizeof(int));
       trafficHistory[GRAPH_W - 1] = smoothedKbps;
+      
+      needsRedraw = true;
     }
     
-    // Draw after data shift
-    drawWifiDisplay2();
-    drawWifiTarget();
+    if (needsRedraw) {
+      needsRedraw = false;
+      drawWifiDisplay2();
+      drawWifiTarget();
+    }
   }
 }
 
@@ -426,25 +466,34 @@ void AppWifi_HandleEvent(LogicalEvent ev) {
   if (!inWifiMode) return;
 
   if (ev == EV_UP_TAP) {
-    if (wifiView == 0) { wifiSel = max(0, wifiSel - 1); wifiLastTick = 0; }
+    if (wifiView == 0) { wifiSel = max(0, wifiSel - 1); needsRedraw = true; }
   }
   else if (ev == EV_DOWN_TAP) {
-    if (wifiView == 0) { wifiSel++; wifiLastTick = 0; }
+    if (wifiView == 0) { wifiSel++; needsRedraw = true; }
   }
   else if (ev == EV_CENTER_TAP) {
-    if (wifiView == 0 && wifiCount > 0) {
-      // Scanner ➡️ RSSI
-      memcpy(targetBSSID, WiFi.BSSID(wifiSel), 6);
-      strncpy(targetSSID, WiFi.SSID(wifiSel).c_str(), 32);
-      targetSSID[32] = '\0';
-      targetChannel = WiFi.channel(wifiSel);
-      wifiView = 1;
-      for(int i = 0; i < GRAPH_W; i++) { dbmHistory[i] = 0; trafficHistory[i] = -1; }
-      packetCount = 0;
-      deviceCount = 0;
-      memset(deviceMACs, 0, sizeof(deviceMACs));
-      WiFi.scanDelete(); 
-      wifiLastTick = 0;
+    if (wifiView == 0) {
+      int n = WiFi.scanComplete();
+      if (n > 0 && wifiSel < n) {
+        uint8_t* bssid = WiFi.BSSID(wifiSel);
+        if (bssid != nullptr) {
+          // Scanner ➡️ RSSI
+          memcpy(targetBSSID, bssid, 6);
+          strncpy(targetSSID, WiFi.SSID(wifiSel).c_str(), 32);
+          targetSSID[32] = '\0';
+          targetChannel = WiFi.channel(wifiSel);
+          wifiView = 1;
+          for(int i = 0; i < GRAPH_W; i++) { dbmHistory[i] = 0; trafficHistory[i] = -1; }
+          packetCount = 0;
+          deviceCount = 0;
+          memset(deviceMACs, 0, sizeof(deviceMACs));
+          WiFi.scanDelete(); 
+          
+          needsRedraw = true;
+          rssiLastTick = millis();
+          WiFi.scanNetworks(true, false, false, 100, targetChannel);
+        }
+      }
     } 
     else if (wifiView == 1) {
       // RSSI ➡️ Traffic
@@ -455,13 +504,16 @@ void AppWifi_HandleEvent(LogicalEvent ev) {
       esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);
       esp_wifi_set_promiscuous(true);
       esp_wifi_set_channel(targetChannel, WIFI_SECOND_CHAN_NONE);
-      wifiLastTick = 0; 
+      wifiLastTick = millis(); 
+      needsRedraw = true;
     } 
     else if (wifiView == 2) {
       // Traffic ➡️ Scanner
       esp_wifi_set_promiscuous(false);
       wifiView = 0;
-      wifiLastTick = 0; 
+      needsRedraw = true;
+      lastScanStatus = -99;
+      WiFi.scanNetworks(true);
     }
   }
   else if (ev == EV_LEFT_TAP) {
@@ -469,7 +521,9 @@ void AppWifi_HandleEvent(LogicalEvent ev) {
     if (wifiView == 1 || wifiView == 2) {
       if (wifiView == 2) esp_wifi_set_promiscuous(false);
       wifiView = 0; // Go back to scanner
-      wifiLastTick = 0; // Force immediate frame
+      needsRedraw = true;
+      lastScanStatus = -99;
+      WiFi.scanNetworks(true);
     } else {
       AppManager_ReturnToMenu();
     }

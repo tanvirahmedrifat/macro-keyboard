@@ -53,7 +53,7 @@ void AppGames_Update() {
             oled.display();
             
             // Draw status display for Games Menu
-            oled2.clearDisplay();
+            if (!oled2Active) return; oled2.clearDisplay();
             oled2.setTextColor(SSD1306_WHITE);
             oled2.setTextSize(1);
             oled2.setCursor(0, 10);

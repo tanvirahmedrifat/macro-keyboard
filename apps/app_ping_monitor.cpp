@@ -445,7 +445,7 @@ static void screenWifiSelect() {
     oled.display();
 
     // ── OLED2 ──
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("WIFI", "SEL"); d2Divider();
     d2L(18, "CHOOSE"); d2L(28, "WI-FI"); d2L(38, "NETWORK");
     d2R(28, "CTR"); d2R(38, "=OK");
@@ -472,7 +472,7 @@ static void screenConnecting(unsigned long timeout, const char* title) {
     oled.display();
 
     // ── OLED2 ──
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("WIFI", "..."); d2Divider();
     d2L(20, ssid);
     char pb[8]; snprintf(pb, 8, "%d%%", pct); d2L(32, pb);
@@ -504,7 +504,7 @@ static void screenTargetSelect() {
     oled.display();
 
     // ── OLED2: target details ──
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("TARGET", "SEL"); d2Divider();
     d2L(18, TARGETS[targetSel].name);
     if (TARGETS[targetSel].gatewayMode) {
@@ -548,7 +548,7 @@ static void screenMonitoring() {
     oled.display();
 
     // ── OLED2: live statistics ──
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("PING", "STAT"); d2Divider();
     drawStatsBlock();
     oled2.display();
@@ -571,7 +571,7 @@ static void screenPaused() {
     oled.display();
 
     // ── OLED2: stats (frozen) ──
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("PAUSED", "STOP"); d2Divider();
     drawStatsBlock();
     oled2.display();
@@ -598,7 +598,7 @@ static void screenResetConfirm() {
     oled.setCursor(4, 54); oled.print("CTR=OK  L=Cancel");
     oled.display();
 
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("RESET", "STS");
     d2L(22, "CLEAR ALL"); d2L(34, "STATS?");
     oled2.display();
@@ -615,7 +615,7 @@ static void screenError() {
     centered("L=Select WiFi", 50);
     oled.display();
 
-    oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
+    if (!oled2Active) return; oled2.clearDisplay(); oled2.setTextColor(SSD1306_WHITE); oled2.setTextSize(1);
     d2Header("ERROR", "!ERR"); d2Divider();
     d2L(22, errorMsg);
     d2L(34, "CTR=Retry");

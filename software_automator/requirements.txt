@@ -1,0 +1,8 @@
+opencv-python
+numexpr
+mss
+pyserial
+numpy
+websockets
+pytesseract
+mss

@@ -100,7 +100,7 @@ bool wasCon = false;
 
 
 // ── WIFI & NTP (dynamic list from Preferences) ────────────────────────
-WifiCred WIFI_NETS[10]; // Max 10 networks
+WifiCred WIFI_NETS[50]; // Max 10 networks
 int WIFI_NET_COUNT = 0;
 Preferences prefs;
 const char* WIFI_SSID = WIFI_NETS[0].ssid; // used for display only (updated at runtime)
@@ -128,6 +128,7 @@ const int menuLayers[8] = {2, 1, 3, 4, 6, 7, 8, 9};
 // permanent phosphor burn-in caused by long-running static images.
 bool          oledSleeping  = false;
 bool          silentMode    = false;
+bool          oled2Active   = false;
 unsigned long sleepTimeoutMs = 5UL * 60UL * 1000UL;  // 5 minutes (mutable)
 
 // ── IDLE DISPLAY STATE ──────────────────────────────────────────────────
@@ -149,12 +150,12 @@ void getTimeCStr(char* buf) {
 
 // ── STRING HELPERS ────────────────────────────────────────
 String firstName() {
-  String s = String(firstNames[fnIdx]);
+  String s = String(FPSTR(firstNames[fnIdx]));
   s.toLowerCase();
   return s;
 }
 String lastName() {
-  String s = String(lastNames[lnIdx]);
+  String s = String(FPSTR(lastNames[lnIdx]));
   s.toLowerCase();
   return s;
 }
@@ -303,8 +304,8 @@ bool macroDelay(int ms) {
   while (millis() - start < (unsigned long)ms) {
     if (macroAborted) return true;
     if (!ble.isPaired()) { macroAborted = true; return true; }
-    // Any button press after the 300ms grace period aborts the macro
-    if (millis() - macroStartMs > 300) {
+    // Any button press after the 1000ms grace period aborts the macro
+    if (millis() - macroStartMs > 1000) {
       if (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW ||
           digitalRead(PIN3) == LOW || digitalRead(PIN4) == LOW ||
           digitalRead(PIN5) == LOW) {
@@ -1236,7 +1237,12 @@ void setup() {
   Wire.begin(); Wire.setClock(400000);
   if (!oled2.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
     Serial.println("OLED 2 failed");
-  } else { oled2.clearDisplay(); oled2.display(); }
+    oled2Active = false;
+  } else { 
+    oled2Active = true;
+    oled2.clearDisplay(); 
+    oled2.display(); 
+  }
 
   bootTaskRunning = true;
   xTaskCreatePinnedToCore(
@@ -1271,20 +1277,31 @@ void setup() {
   sleepTimeoutMs = prefs.getULong("sleepTimeout", 5UL * 60UL * 1000UL);
   
   WIFI_NET_COUNT = prefs.getInt("wifi_cnt", 0);
-  
-  // Migration: If no networks exist, populate with the legacy hardcoded credentials
-  if (WIFI_NET_COUNT == 0) {
-    const char* legacy_ssids[] = {"Faysal", "Raha", "Tanvir Ahmed Rifat", "D LAB", "UCEP_AUTO"};
-    const char* legacy_passes[] = {"Rifat007", "rafsan25631", "Rifat#007", "ent@1981#", "auto_!@ukwf#$524"};
-    for (int i = 0; i < 5; i++) {
-        prefs.putString(("ssid_" + String(i)).c_str(), legacy_ssids[i]);
-        prefs.putString(("pass_" + String(i)).c_str(), legacy_passes[i]);
-    }
-    prefs.putInt("wifi_cnt", 5);
-    WIFI_NET_COUNT = 5;
-  }
-
-  for (int i = 0; i < WIFI_NET_COUNT && i < 10; i++) {
+    // INJECTION BLOCK START
+  prefs.putString("ssid_0", "Faysal"); prefs.putString("pass_0", "Rifat007");
+  prefs.putString("ssid_1", "SL-1"); prefs.putString("pass_1", "SL-1@2025");
+  prefs.putString("ssid_2", "DIR-615-0E0D"); prefs.putString("pass_2", "12787746");
+  prefs.putString("ssid_3", "Tanvir Ahmed Rifat"); prefs.putString("pass_3", "Rifat#007");
+  prefs.putString("ssid_4", "Sk kobir_5G"); prefs.putString("pass_4", "skkobir1@2");
+  prefs.putString("ssid_5", "OPPO A15s"); prefs.putString("pass_5", "12345678@");
+  prefs.putString("ssid_6", "Raha"); prefs.putString("pass_6", "rafsan25631");
+  prefs.putString("ssid_7", "Faysal_phone"); prefs.putString("pass_7", "12345678@");
+  prefs.putString("ssid_8", "Tanvir"); prefs.putString("pass_8", "rifat007");
+  prefs.putString("ssid_9", "WMR_Office"); prefs.putString("pass_9", "admin@wmr26");
+  prefs.putString("ssid_10", "D LAB"); prefs.putString("pass_10", "ent@1981#");
+  prefs.putString("ssid_11", "Head ET"); prefs.putString("pass_11", "HEAD@ET35048");
+  prefs.putString("ssid_12", "NAJRUL ISLAM"); prefs.putString("pass_12", "nazifamoon");
+  prefs.putString("ssid_13", "Shihab"); prefs.putString("pass_13", "01745560679");
+  prefs.putString("ssid_14", "Nothing@Taposh"); prefs.putString("pass_14", "Taposh01946433622");
+  prefs.putString("ssid_15", "Sk kobir 2.0_5G"); prefs.putString("pass_15", "SKkobir2@2");
+  prefs.putString("ssid_16", "REDMI Note 15"); prefs.putString("pass_16", "99999999");
+  prefs.putString("ssid_17", "UCEP_AUTO"); prefs.putString("pass_17", "auto_!@ukwf#$524");
+  prefs.putString("ssid_18", "taniya rahman"); prefs.putString("pass_18", "14372419987");
+  prefs.putString("ssid_19", "KPI_ENT_Group-06"); prefs.putString("pass_19", "rifat0078");
+  prefs.putInt("wifi_cnt", 20);
+  WIFI_NET_COUNT = 20;
+  // INJECTION BLOCK END
+  for (int i = 0; i < WIFI_NET_COUNT && i < 50; i++) {
     String s = prefs.getString(("ssid_" + String(i)).c_str(), "");
     String p = prefs.getString(("pass_" + String(i)).c_str(), "");
     strncpy(WIFI_NETS[i].ssid, s.c_str(), 32); WIFI_NETS[i].ssid[32] = '\0';
@@ -1293,7 +1310,6 @@ void setup() {
   prefs.end(); // !! Close so web-server task Preferences handles can open cleanly
 
   wifiStartMs = millis();
-  unsigned long wifiAttemptStart = millis();
   bool wifiConnected = false;
 
   if (WIFI_NET_COUNT > 0) {
@@ -1302,41 +1318,54 @@ void setup() {
     WiFi.setSleep(false);  // Disable power-save — improves NTP reliability
     delay(100);
 
-    WIFI_SSID = WIFI_NETS[0].ssid;
-    Serial.printf("[WiFi] Trying: %s\n", WIFI_NETS[0].ssid);
-    WiFi.begin(WIFI_NETS[0].ssid, WIFI_NETS[0].pass);
+    // ── SCAN-FIRST WiFi Boot ───────────────────────────────────────────────
+    // Scan visible SSIDs first (~2-3s), then only attempt connection if a
+    // saved network is actually in range. This avoids spending 8-12s per
+    // network on blind retries when no saved network is nearby.
+    Serial.println("[WiFi] Scanning for saved networks...");
+    wifiPct = 5;
+    int scanCount = WiFi.scanNetworks(false, false);  // blocking scan
+    wifiPct = 30;
+    Serial.printf("[WiFi] Scan found %d networks\n", scanCount);
 
-    // Try primary
-    while (millis() - wifiAttemptStart < 12000) {
-      if (WiFi.status() == WL_CONNECTED) {
-         wifiConnected = true;
-         break;
-      }
+    // Find the best (strongest RSSI) saved network that is visible
+    int bestSavedIdx   = -1;   // index into WIFI_NETS[]
+    int bestRSSI       = -200;
 
-      wifiPct = 10 + ((millis() - wifiAttemptStart) / 150) % 80;
-      delay(10);
-    }
-
-    // Try fallbacks
-    if (!wifiConnected) {
-      for (int ni = 1; ni < WIFI_NET_COUNT; ni++) {
-        WiFi.disconnect(true);
-        delay(200);
-        WIFI_SSID = WIFI_NETS[ni].ssid;
-        Serial.printf("[WiFi] Trying fallback: %s\n", WIFI_NETS[ni].ssid);
-        WiFi.begin(WIFI_NETS[ni].ssid, WIFI_NETS[ni].pass);
-        
-        unsigned long tryStart = millis();
-        while (millis() - tryStart < 8000) {
-          if (WiFi.status() == WL_CONNECTED) {
-            wifiConnected = true;
-            break;
+    for (int si = 0; si < scanCount; si++) {
+      String scannedSSID = WiFi.SSID(si);
+      int    scannedRSSI = WiFi.RSSI(si);
+      for (int ni = 0; ni < WIFI_NET_COUNT; ni++) {
+        if (scannedSSID == WIFI_NETS[ni].ssid) {
+          if (scannedRSSI > bestRSSI) {
+            bestRSSI     = scannedRSSI;
+            bestSavedIdx = ni;
           }
-          wifiPct = 10 + ((millis() - tryStart) / 100) % 80;
-          delay(10);
         }
-        if (wifiConnected) break;
       }
+    }
+    WiFi.scanDelete(); // free scan memory
+
+    if (bestSavedIdx >= 0) {
+      // A saved network is visible — connect to the strongest one
+      WIFI_SSID = WIFI_NETS[bestSavedIdx].ssid;
+      Serial.printf("[WiFi] Found saved network: %s (RSSI %d), connecting...\n",
+                    WIFI_NETS[bestSavedIdx].ssid, bestRSSI);
+      WiFi.begin(WIFI_NETS[bestSavedIdx].ssid, WIFI_NETS[bestSavedIdx].pass);
+
+      unsigned long connectStart = millis();
+      while (millis() - connectStart < 10000) {
+        if (WiFi.status() == WL_CONNECTED) {
+          wifiConnected = true;
+          break;
+        }
+        wifiPct = 30 + ((millis() - connectStart) / 143) % 65;
+        delay(10);
+      }
+    } else {
+      // No saved networks visible — skip WiFi entirely (fast path)
+      Serial.println("[WiFi] No saved networks in range — skipping connection");
+      wifiPct = 90;
     }
   }
 
@@ -1489,6 +1518,16 @@ void loop() {
     AppManager_HandleMatrix(mKey);
   }
 
+  // ── PC Automation via USB Serial ──
+  if (Serial.available()) {
+    char sKey = Serial.read();
+    // Only accept valid matrix characters (0-9)
+    if ((sKey >= '0' && sKey <= '9') || sKey == '*' || sKey == '#') {
+      Serial.printf("[PC Automator] Triggering Key '%c'\n", sKey);
+      AppManager_HandleMatrix(sKey);
+    }
+  }
+
   // ── Universal Return-to-Main-Menu (Hold * for 2s) ──
   static unsigned long starHoldStart = 0;
   static bool starIsHeld = false;
@@ -1620,6 +1659,7 @@ void loop() {
   ABORT_MACRO:
   // Reset all button tracking state so no stale hold is remembered
   SystemInput_ResetState();
+  macroAborted = false;
   
 
   // ── CRITICAL: wait until every button is physically released ─────────────

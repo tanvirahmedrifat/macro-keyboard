@@ -1,0 +1,38 @@
+  // INJECTION BLOCK START
+  prefs.begin("macro-kb", false);
+  prefs.putString("ssid_0", "Faysal"); prefs.putString("pass_0", "Rifat007");
+  prefs.putString("ssid_1", "uFi_2400AD"); prefs.putString("pass_1", "faysal007");
+  prefs.putString("ssid_2", "NodeMCU-Hotspot"); prefs.putString("pass_2", "12345678");
+  prefs.putString("ssid_3", "SL-1"); prefs.putString("pass_3", "SL-1@2025");
+  prefs.putString("ssid_4", "DIR-615-0E0D"); prefs.putString("pass_4", "12787746");
+  prefs.putString("ssid_5", "Adhora Dreams"); prefs.putString("pass_5", "");
+  prefs.putString("ssid_6", "Tanvir Ahmed Rifat"); prefs.putString("pass_6", "Rifat#007");
+  prefs.putString("ssid_7", "Sk kobir_5G"); prefs.putString("pass_7", "skkobir1@2");
+  prefs.putString("ssid_8", "OPPO A15s"); prefs.putString("pass_8", "12345678@");
+  prefs.putString("ssid_9", "pwned"); prefs.putString("pass_9", "deauther");
+  prefs.putString("ssid_10", "Raha"); prefs.putString("pass_10", "rafsan25631");
+  prefs.putString("ssid_11", "Faysal_phone"); prefs.putString("pass_11", "12345678@");
+  prefs.putString("ssid_12", "SBK-Khulna"); prefs.putString("pass_12", "");
+  prefs.putString("ssid_13", "ESP-704471"); prefs.putString("pass_13", "");
+  prefs.putString("ssid_14", "Tanvir"); prefs.putString("pass_14", "rifat007");
+  prefs.putString("ssid_15", "WMR_Office"); prefs.putString("pass_15", "admin@wmr26");
+  prefs.putString("ssid_16", "D LAB"); prefs.putString("pass_16", "ent@1981#");
+  prefs.putString("ssid_17", "dlink-C238"); prefs.putString("pass_17", "");
+  prefs.putString("ssid_18", "Head ET"); prefs.putString("pass_18", "HEAD@ET35048");
+  prefs.putString("ssid_19", "NAJRUL ISLAM"); prefs.putString("pass_19", "nazifamoon");
+  prefs.putString("ssid_20", "Shadowrocket-Hotspot"); prefs.putString("pass_20", "securepassword123");
+  prefs.putString("ssid_21", "Shihab"); prefs.putString("pass_21", "01745560679");
+  prefs.putString("ssid_22", "TRENDnet731_EF1A"); prefs.putString("pass_22", "73151R52880");
+  prefs.putString("ssid_23", "Nothing@Taposh"); prefs.putString("pass_23", "Taposh01946433622");
+  prefs.putString("ssid_24", "Sk kobir 2.0_5G"); prefs.putString("pass_24", "SKkobir2@2");
+  prefs.putString("ssid_25", "ESP_704471"); prefs.putString("pass_25", "");
+  prefs.putString("ssid_26", "SHAWON"); prefs.putString("pass_26", "");
+  prefs.putString("ssid_27", "REDMI Note 15"); prefs.putString("pass_27", "99999999");
+  prefs.putString("ssid_28", "UCEP_AUTO"); prefs.putString("pass_28", "auto_!@ukwf#$524");
+  prefs.putString("ssid_29", "taniya rahman"); prefs.putString("pass_29", "14372419987");
+  prefs.putString("ssid_30", "KPI_ENT_Group-06"); prefs.putString("pass_30", "rifat0078");
+  prefs.putString("ssid_31", "TP-Link_F5A4"); prefs.putString("pass_31", "");
+  prefs.putString("ssid_32", "realme C25s"); prefs.putString("pass_32", "12345678");
+  prefs.putInt("wifi_cnt", 33);
+  prefs.end();
+  // INJECTION BLOCK END
