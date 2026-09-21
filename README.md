@@ -1,6 +1,6 @@
 # Tanvir's ESP32 Macro Keyboard v3.0
 
-![Macro Keyboard](assets/macro-keyboard.jpg)
+![Macro Keyboard](assets/macro-keyboard.png)
 
 A professional multi-function Macro Keyboard and App platform built with an **ESP32**, **2 I2C OLED displays**, **5 push buttons (Up/Down/Left/Right/Center)**, a **4x3 Matrix Keypad**, and a **Buzzer**. 
 
