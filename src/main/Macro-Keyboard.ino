@@ -2,14 +2,14 @@
 //  ESP32 Professional Macro Keyboard  v3.0
 //  Owner: Rifat
 //  ─────────────────────────────────────────────────
-//  BTN1  tap    → first name (lowercase) + Enter
-//  BTN1  hold   → firstname+lastname+random digits (lowercase)
-//  BTN2  tap    → form-filling macro (DOB + gender)
-//  BTN2  hold   → NEW profile (new name + new password)
-//  BTN3  tap    → type current password (human-speed) + Enter
-//  BTN3  hold   → Open Notes via Spotlight → Paste → Enter → Password → Enter → Home Screen
-//  BTN4  tap    → Spotlight -> type "clear history" -> Enter
-//  BTN4  hold   → Spotlight -> type "Date & Time" -> Enter
+//  Key 1  → first name + tab + last name + Enter
+//  Key 2  → form-filling macro (DOB + gender)
+//  Key 3  → random username (lowercase)
+//  Key 4  → type current password (human-speed) + Enter
+//  Key 5  → Open Notes via Spotlight → Paste → Password → Home Screen
+//  Key 6  → Spotlight -> type "clear history" -> Enter
+//  Key 7  → Random USA Time Zone
+//  Key 0  → Generate NEW profile (new name + new password)
 // ============================================================
 
 #include <HijelHID_BLEKeyboard.h>
@@ -364,6 +364,8 @@ void humanType(const char* text) {
     }
 
     // ⑧ Typo + backspace (~5% on alpha chars, skip first char)
+    // DISABLED to prevent intentional typing mistakes
+    /*
     if (i > 0 && isalpha(c) && random(100) < 5) {
       char typo = getAdjacentKey(c);
       if (isupper(c) && random(100) < 80) typo = toupper(typo);
@@ -374,6 +376,7 @@ void humanType(const char* text) {
       ble.tap(KEY_BACKSPACE, 0, gaussRandom(80, 20), 0);
       if (macroDelay(gaussRandom(300, 90)))  { ble.releaseAll(); return; }
     }
+    */
 
     // ⑨ Typing fatigue: subtle slowdown accumulates every ~8 chars
     int fatigue = (i / 8) * (int)random(2, 6);

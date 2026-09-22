@@ -2,7 +2,7 @@
 #include <Arduino.h>
 
 const unsigned long BTN_HOLD_MS = 600;
-const unsigned long BTN_DEBOUNCE_MS = 80;
+const unsigned long BTN_DEBOUNCE_MS = 20;
 
 struct BtnState {
     uint8_t pin;

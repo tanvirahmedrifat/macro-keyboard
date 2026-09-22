@@ -11,6 +11,12 @@ void AppIosMacro_Key3() {
           String user = firstName() + lastName() + suffix;
           drawAction(">> typing username..");
           MDELAY(random(600, 1200));   // Short hesitation before typing username
+          
+          // ── Shift-Breaker: Defeat OS Sticky Shift ──
+          humanTap(KEY_SPACE);
+          humanTap(KEY_BACKSPACE);
+          MDELAY(random(50, 150));
+
           humanType(user.c_str());
           MDELAY(random(800, 1500));   // Natural pause to check username before Enter
           humanTap(KEY_RETURN);
@@ -20,7 +26,7 @@ void AppIosMacro_Key3() {
           MDELAY(1200);
         }
 void AppIosMacro_Key1() {
-          // Short tap: first name + Enter, then last name + Enter
+          // ── Matrix Key: first name + Enter, then last name + Enter ──
           String fn = firstName();
           String ln = lastName();
           drawAction(">> typing first name");
@@ -30,6 +36,11 @@ void AppIosMacro_Key1() {
           humanTap(KEY_TAB);
           MDELAY(random(300, 600));
           
+          // ── Shift-Breaker: Defeat OS Sticky Shift ──
+          humanTap(KEY_SPACE);
+          humanTap(KEY_BACKSPACE);
+          MDELAY(random(50, 150));
+
           humanType(fn.c_str());
           MDELAY(random(200, 500));    // Quick natural pause before hitting Tab
           humanTap(KEY_TAB);
@@ -48,7 +59,7 @@ void AppIosMacro_Key0() {
           MDELAY(1200);
         }
 void AppIosMacro_Key2() {
-          // Short tap: Form filling macro — human-paced
+          // ── Matrix Key: Form filling macro — human-paced ──
           drawAction(">> running macro...");
 
         // ── MONTH DROPDOWN ───────────────────────────────────────
@@ -118,7 +129,7 @@ void AppIosMacro_Key2() {
           MDELAY(1200);
         }
 void AppIosMacro_Key5() {
-          // ── BTN_HOLD_MS: Save to Notes Macro ──
+          // ── Matrix Key: Save to Notes Macro ──
           drawAction(">> notes macro");
   
           // Home screen (reset iOS state)
@@ -186,7 +197,7 @@ void AppIosMacro_Key5() {
           MDELAY(900);
         }
 void AppIosMacro_Key4() {
-          // ── TAP: human-speed password + Enter ──
+          // ── Matrix Key: human-speed password + Enter ──
           drawAction(">> typing pwd..");
         MDELAY(random(600, 1200));  // pre-type hesitation
         drawPasswordTyping();       // show full password on both screens
@@ -206,7 +217,7 @@ void AppIosMacro_Key4() {
           MDELAY(900);
         }
 void AppIosMacro_Key7() {
-          // ── BTN_HOLD_MS: Random USA Time Zone Macro ──
+          // ── Matrix Key: Random USA Time Zone Macro ──
           drawAction(">> time zone..");
         
           // Command + H (Home Screen to reset state)
@@ -268,7 +279,7 @@ void AppIosMacro_Key7() {
           MDELAY(400);
         }
 void AppIosMacro_Key6() {
-          // ── TAP: Clear History Spotlight Macro ──
+          // ── Matrix Key: Clear History Spotlight Macro ──
           drawAction(">> searching..");
         
         // Command + H (Home Screen to reset state)
