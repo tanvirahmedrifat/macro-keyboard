@@ -13,14 +13,17 @@ extern void BootMenu_HandleInput(LogicalEvent ev);
 static RadioReq currentRadio = RADIO_BLE; // System boots with BLE enabled
 
 static AppContainer apps[10] = {
-    {RADIO_NONE, nullptr,             nullptr},             // 0
+    // FIX BUG-A: Layer 0 (menu) needs RADIO_BLE, not RADIO_NONE.
+    // With RADIO_NONE, returning to the boot menu called ble.kill() and left BLE dead
+    // until the user re-entered a BLE app. All menu-layer apps are BLE apps.
+    {RADIO_BLE,  nullptr,             nullptr},             // 0 (Boot Menu)
     {RADIO_BLE,  nullptr,             nullptr},             // 1 (iOS Macro)
     {RADIO_WIFI, AppWifi_Init,        AppWifi_Exit},        // 2 (WiFi Analyzer)
     {RADIO_BLE,  nullptr,             nullptr},             // 3 (Nokia)
     {RADIO_BLE,  nullptr,             nullptr},             // 4 (Media)
     {RADIO_NONE, nullptr,             nullptr},             // 5
     {RADIO_NONE, AppGames_Init,       AppGames_ExitToMenu}, // 6 (Games)
-    {RADIO_WIFI,  AppSettings_Init,    AppSettings_Exit},    // 7 (Setting)
+    {RADIO_WIFI,  AppSettings_Init,    AppSettings_Exit},    // 7 (Settings)
     {RADIO_BLE,  nullptr,             nullptr},             // 8 (Tester)
     {RADIO_WIFI, AppPingMonitor_Init, AppPingMonitor_Exit}  // 9 (Ping Monitor)
 };
@@ -41,17 +44,32 @@ void AppManager_SwitchApp(int layerIndex) {
     if (currentRadio != nextRadio) {
         // Shutdown current radio safely
         if (currentRadio == RADIO_BLE) {
-            ble.end();
-            delay(50);
+            // FIX BUG-D: If a macro is mid-execution when ble.kill() runs,
+            // the macro's MDELAY calls ble.releaseAll() on a destroyed stack → crash.
+            // Signal the macro to abort FIRST so it can call ble.releaseAll() cleanly,
+            // then wait a brief moment for it to wind down before killing the stack.
+            extern volatile bool macroAborted;
+            macroAborted = true;
+            delay(30); // allow macroDelay() one 10ms tick to see the flag and return
+            ble.releaseAll(); // ensure no keys are stuck before destroying stack
+            ble.kill();       // Completely de-initialize NimBLE to free radio
+            delay(80);        // Give RF controller time to flush
         } else if (currentRadio == RADIO_WIFI) {
             WiFi.disconnect(true);
             WiFi.mode(WIFI_OFF);
-            delay(50);
+            delay(80);  // Give RF controller time to flush before BLE starts
         }
         
         // Start next radio
         if (nextRadio == RADIO_BLE) {
-            ble.begin();
+            // FIX BUG-B: ble.kill() destroys NimBLE stack state including security config.
+            // ble.begin() alone re-inits NimBLE but with DEFAULT settings.
+            // Must reapply security + address config so iOS accepts the existing HID bond.
+            // Without this, iOS sees a device with different capabilities and rejects pairing.
+            ble.setSecurityMode(HIDSecurity::JustWorks);
+            ble.setRandomAddress(false);
+            ble.setLogLevel(HIDLogLevel::Normal);
+            ble.begin(); // Cleanly re-inits with correct config
         } else if (nextRadio == RADIO_WIFI) {
             WiFi.mode(WIFI_STA);
         }
@@ -69,7 +87,9 @@ void AppManager_SwitchApp(int layerIndex) {
 }
 
 void AppManager_Update() {
-    if (activeLayer == 2) {
+    if (activeLayer == 1) {
+        AppIosMacro_Update();
+    } else if (activeLayer == 2) {
         AppWifi_Update();
     } else if (activeLayer == 3) {
         AppNokia_Update();
@@ -103,29 +123,51 @@ void AppManager_HandleMatrix(char mKey) {
         handled = true;
     }
 
+    // FIX 34: Only play beepTap() if a real app handled the key.
+    // Previously, even unassigned layers (like layer 5) would play a beep,
+    // giving misleading positive feedback for a no-op press.
     if (handled) {
-        beepTap();
+        // FIX 3: Don't double-beep for layer 1 (iOS Macro).
+        // AppIosMacro_HandleMatrix() calls beepDone() internally at the end
+        // of every macro. Calling beepTap() here on top causes a double beep.
+        if (activeLayer != 1) {
+            beepTap();
+        }
     }
 }
 
 void AppManager_ReturnToMenu() {
     beepTap();
     
-    // Switching to Layer 1 (default BLE layer) cleanly shuts down the current app 
-    // and handles radio transitions via the container framework.
-    AppManager_SwitchApp(1);
+    // Switching to Layer 0 (RADIO_NONE) cleanly shuts down the current app 
+    // and turns off all radios, placing the device in an idle state.
+    AppManager_SwitchApp(0);
     
     // Override back to the Boot Menu
     inBootMenu = true;
     
+    // FIX: CRITICAL — Reset the idle timer BEFORE waiting for key release.
+    // If the user was inside an app for more than 15 seconds, idleStartTime is stale.
+    // Without this reset, updateBootMenu() would immediately enter the screensaver
+    // instead of drawing the menu, making it look like the screen is broken.
+    // Also wakes OLEDs if they were sleeping inside the app.
+    resetIdle();
+    wakeDisplays();
+    
     drawAction(">> menu");
-    ble.print("returned to menu\n");
     
     // Wait for all main buttons and matrix keypad keys to be physically released
     // to prevent the newly-opened menu from instantly consuming the remaining hold.
     WaitAllKeysReleased();
     delay(50); // Small debounce after physical release
+    
+    // Immediately draw the menu so OLED 1 is correct from the first frame back.
+    // Without this, there is a 1-frame window where the menu loop hasn't run yet
+    // and OLED 1 would show a black screen or the action toast aftermath.
+    extern void drawMenuList();
+    drawMenuList();
 }
+
 
 void AppManager_HandleEvent(LogicalEvent ev) {
     // Wake display on any action
@@ -137,19 +179,31 @@ void AppManager_HandleEvent(LogicalEvent ev) {
         return;
     }
 
-    // ── Layer 2 (WiFi Analyzer) and Layer 9 (Ping Monitor): forward all events, including BACKSPACE_HOLD_2S
-    // Prevents global shortcuts (display cycle, Bad Apple) from firing inside the app.
-    if (activeLayer == 2 || activeLayer == 9) {
-        if (ev == EV_UP_HOLD    || ev == EV_DOWN_HOLD  || ev == EV_LEFT_HOLD ||
-            ev == EV_RIGHT_HOLD || ev == EV_CENTER_HOLD) {
-            beepHoldReady();
-        } else if (ev != EV_NONE) {
-            beepTap();
+    // ── Layer 1, 2, and 9: forward events and prevent default global shortcuts
+    // For iOS Macro (1), we swallow directional/center button events so they don't beep or trigger display cycle.
+    if (activeLayer == 1 || activeLayer == 2 || activeLayer == 9) {
+        if (activeLayer != 1) { // Normal beep behavior for Wifi/Ping
+            if (ev == EV_UP_HOLD    || ev == EV_DOWN_HOLD  || ev == EV_LEFT_HOLD ||
+                ev == EV_RIGHT_HOLD || ev == EV_CENTER_HOLD) {
+                beepHoldReady();
+            } else if (ev != EV_NONE && ev != EV_BACKSPACE_HOLD_2S) {
+                beepTap();
+            }
         }
         
-        if (activeLayer == 2) AppWifi_HandleEvent(ev);
-        else if (activeLayer == 9) AppPingMonitor_HandleEvent(ev);
+        if (activeLayer == 1) AppIosMacro_HandleEvent(ev);
+        else if (activeLayer == 2) AppWifi_HandleEvent(ev);
+        else if (activeLayer == 9) {
+            AppPingMonitor_HandleEvent(ev);
+            // BUG-FIX: PingMonitor handles EV_BACKSPACE_HOLD_2S internally (calls ReturnToMenu itself).
+            // Calling ReturnToMenu again here caused a double-invocation: double beep + double key wait.
+            return; // skip outer ReturnToMenu for layer 9
+        }
         
+        // Still allow returning to menu globally (layers 1 and 2)
+        if (ev == EV_BACKSPACE_HOLD_2S) {
+            AppManager_ReturnToMenu();
+        }
         return;
     }
 
@@ -225,6 +279,9 @@ void AppManager_HandleEvent(LogicalEvent ev) {
         case EV_CENTER_TAP:
             beepTap();
             if (activeLayer == 3) AppNokia_Btn5_Tap();
+            // BUG-38 FIX: Media layer (4) had no center-tap handler — silent dead button.
+            // Added Btn5_Tap for Media (typically play/pause or next track).
+            else if (activeLayer == 4) AppMedia_Btn5_Tap();
             else if (activeLayer == 6) AppGames_HandleInput(ev);
             else if (activeLayer == 7) AppSettings_HandleInput(ev);
             else if (activeLayer == 8) AppTester_Btn5_Tap();
@@ -252,7 +309,12 @@ void AppManager_HandleEvent(LogicalEvent ev) {
             drawAction(">> bad apple!");
             delay(300);             // plain delay — no macro context, no abort risk
             playBadApple(&oled, &oled2);
+            // FIX: Redraw the correct app UI after Bad Apple ends.
+            // Without this, the last video frame is permanently stuck on both OLEDs
+            // until the next user input triggers a redraw via tickIdle().
             resetIdle();
+            d1Draw();
+            d2Idle();
             break;
             
         case EV_NONE:

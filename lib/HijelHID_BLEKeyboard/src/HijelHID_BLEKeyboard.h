@@ -46,6 +46,7 @@
 // ─── Report IDs ────────────────────────────────────────────────────────────
 #define HID_REPORT_ID_KEYBOARD  0x01
 #define HID_REPORT_ID_CONSUMER  0x02
+#define HID_REPORT_ID_MOUSE     0x03
 
 // ─── Report Sizes ──────────────────────────────────────────────────────────
 // Keyboard input:  8 bytes — [modifiers][reserved][key0..key5]
@@ -461,6 +462,30 @@ public:
     void tap(uint16_t usageId,
              uint16_t delayMs = 0, uint16_t keyGap = 0);
 
+    // ─── Mouse Input ─────────────────────────────────────────────────────
+
+    /**
+     * Move the mouse relative to its current position.
+     * x and y are -127 to 127. wheel is -127 to 127.
+     */
+    void mouseMove(int8_t x, int8_t y, int8_t wheel = 0);
+
+    /**
+     * Press and hold a mouse button.
+     * buttons: 1 = left, 2 = right, 4 = middle. OR them together for multiple.
+     */
+    void mousePress(uint8_t buttons);
+
+    /**
+     * Release a mouse button.
+     */
+    void mouseRelease(uint8_t buttons);
+
+    /**
+     * Click a mouse button (press and release).
+     */
+    void mouseClick(uint8_t buttons);
+
     // ─── String Output ───────────────────────────────────────────────────
 
     /**
@@ -593,6 +618,8 @@ private:
     HIDLogLevel         _logLevel;
     bool                _useRandomAddress;  // if true, use random static address in begin()
 
+    uint8_t             _mouseButtons;      // Currently held mouse buttons
+
     // ── Constructor Validation Flags ──────────────────────────────────────
     // Set in the constructor when an argument is out of range. Warnings are
     // deferred to begin() so they print after Serial.begin() has been called.
@@ -654,6 +681,7 @@ private:
     NimBLECharacteristic*      _pKeyboardInput;   // Report ID 0x01 Input  (keys → host)
     NimBLECharacteristic*      _pKeyboardOutput;  // Report ID 0x01 Output (LEDs ← host)
     NimBLECharacteristic*      _pConsumerInput;   // Report ID 0x02 Input  (media → host)
+    NimBLECharacteristic*      _pMouseInput;      // Report ID 0x03 Input  (mouse → host)
     HijelHID_Internal::KBServerCallbacks*   _pServerCb;  // Owned by us, passed to NimBLE
     HijelHID_Internal::KBLEDCallbacks*      _pLEDCb;      // Owned by us, passed to NimBLE
 

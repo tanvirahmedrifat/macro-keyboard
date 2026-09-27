@@ -24,6 +24,11 @@ static bool input_locked = false;
 
 static unsigned long lastMoveTime = 0;
 static unsigned int base_speed = 130;
+// FIX: Store the difficulty-selected base speed separately.
+// base_speed is modified by the speed-scaling system as the snake grows.
+// diff_base_speed holds the original speed for the chosen difficulty so
+// resetGame() can restore it correctly when the player retries.
+static unsigned int diff_base_speed = 130;
 static int diff_sel = 1; // 0=Easy, 1=Med, 2=Hard
 static int gameState = STATE_WELCOME;
 static bool redrawNeeded = true;
@@ -32,7 +37,11 @@ static bool needsStatusRedraw = true;
 // Helper to spawn food
 static void spawnFood() {
     bool valid = false;
-    while (!valid) {
+    // BUG-29 FIX: Added bail-out counter. If the grid is nearly full (e.g. snake
+    // length close to MAX_SNAKE_LEN), this loop could spin for a very long time
+    // or even loop forever. Cap at 500 attempts then place food at 0,0 as fallback.
+    int attempts = 0;
+    while (!valid && attempts < 500) {
         food_x = random(0, GRID_X_MAX + 1);
         food_y = random(0, GRID_Y_MAX + 1);
         valid = true;
@@ -42,7 +51,10 @@ static void spawnFood() {
                 break;
             }
         }
+        attempts++;
     }
+    // Fallback if grid is completely full (extremely unlikely but safe)
+    if (!valid) { food_x = 0; food_y = 0; }
 }
 
 // Reset the game variables for a new run
@@ -54,10 +66,14 @@ static void resetGame() {
     current_direction = DIR_RIGHT;
     next_direction = DIR_RIGHT;
     input_locked = false;
+    // FIX: Restore speed to the difficulty-selected value, not the scaled-up value
+    // from the end of the previous run. Without this, every retry started faster.
+    base_speed = diff_base_speed;
     spawnFood();
     redrawNeeded = true;
     needsStatusRedraw = true;
 }
+
 
 void GameSnake_Init() {
     gameState = STATE_WELCOME;
@@ -144,9 +160,16 @@ void GameSnake_Update() {
         if (redrawNeeded) {
             oled.clearDisplay();
             oled.setTextColor(SSD1306_WHITE);
+            // FIX 25: Show final score on game over screen so the player knows their result.
             oled.setTextSize(2);
-            oled.setCursor(10, 25);
-            oled.print("GAME OVER!");
+            oled.setCursor(10, 10);
+            oled.print("GAME OVER");
+            oled.setTextSize(1);
+            oled.setCursor(20, 38);
+            oled.print("Score: ");
+            oled.print((snake_length - 3) * 5);
+            oled.setCursor(15, 50);
+            oled.print("SELECT to Retry");
             oled.display();
             redrawNeeded = false;
         }
@@ -179,8 +202,10 @@ void GameSnake_Update() {
             return;
         }
 
-        // Self collision check
-        for (int i = 0; i < snake_length - 1; i++) {
+        // FIX 21: Self collision — check ALL body segments including the very last one.
+        // The original code used `snake_length - 1` which skips the tail segment,
+        // allowing the head to illegally overlap with it.
+        for (int i = 0; i < snake_length; i++) {
             if (head_x == snake_x[i] && head_y == snake_y[i]) {
                 gameState = STATE_GAMEOVER;
                 redrawNeeded = true;
@@ -196,6 +221,13 @@ void GameSnake_Update() {
             }
             spawnFood();
             beepTap(); // Beep when eating
+            // FIX 22: Speed scaling — game gets progressively faster as the snake grows.
+            // Clamps at a minimum of 60ms (very hard) to remain playable.
+            // Formula: base_speed decreases by 5ms every 5 food items eaten.
+            int foodEaten = snake_length - 3;
+            int newSpeed = base_speed - (foodEaten / 5) * 5;
+            if (newSpeed < 60) newSpeed = 60;
+            base_speed = (unsigned int)newSpeed;
             needsStatusRedraw = true;
         }
 
@@ -297,14 +329,15 @@ void GameSnake_HandleInput(LogicalEvent ev) {
             diff_sel = (diff_sel + 1) % 3;
             redrawNeeded = true;
         } else if (ev == EV_CENTER_TAP) {
-            if (diff_sel == 0) base_speed = 220; // Easy
-            else if (diff_sel == 1) base_speed = 140; // Med
-            else base_speed = 80; // Hard
+            if (diff_sel == 0) { base_speed = 220; diff_base_speed = 220; } // Easy
+            else if (diff_sel == 1) { base_speed = 140; diff_base_speed = 140; } // Med
+            else { base_speed = 80; diff_base_speed = 80; } // Hard
             
             resetGame();
             gameState = STATE_PLAYING;
             lastMoveTime = millis();
         }
+
         return;
     }
 

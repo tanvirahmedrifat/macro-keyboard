@@ -11,12 +11,15 @@
 
 static int currentGame = SUBMENU_IDLE;
 static int menuSelection = 0;
-static const int numGames = 3;
 static const char* gameNames[] = {
     "Snake",
     "Pong",
     "Tetris"
 };
+// FIX 10: Derive numGames from the array size, not a hardcoded constant.
+// Adding a 4th game only requires adding its name above — no other change needed.
+static const int numGames = (int)(sizeof(gameNames) / sizeof(gameNames[0]));
+
 static bool menuRedraw = true;
 
 void AppGames_Init() {
@@ -100,12 +103,14 @@ void AppGames_HandleInput(LogicalEvent ev) {
         }
     } else {
         // We are inside a game (Snake, Pong, Tetris)
-        // Allow exiting back to Games Menu using LEFT_HOLD (Pin 3 hold)
+        // FIX 27: Consistency — game exit via hold should play the hold-ready tone,
+        // not a tap tone. Every other hold-triggered action uses beepHoldReady().
         if (ev == EV_LEFT_HOLD) {
             AppGames_ExitToMenu();
-            beepTap();
+            beepHoldReady();
             return;
         }
+
         
         if (currentGame == GAME_SNAKE) {
             GameSnake_HandleInput(ev);

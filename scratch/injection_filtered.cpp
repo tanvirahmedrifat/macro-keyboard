@@ -19,6 +19,7 @@
   prefs.putString("ssid_17", "UCEP_AUTO"); prefs.putString("pass_17", "auto_!@ukwf#$524");
   prefs.putString("ssid_18", "taniya rahman"); prefs.putString("pass_18", "14372419987");
   prefs.putString("ssid_19", "KPI_ENT_Group-06"); prefs.putString("pass_19", "rifat0078");
-  prefs.putInt("wifi_cnt", 20);
-  WIFI_NET_COUNT = 20;
+  prefs.putString("ssid_20", "Walid"); prefs.putString("pass_20", "walid01912126418");
+  prefs.putInt("wifi_cnt", 21);
+  WIFI_NET_COUNT = 21;
   // INJECTION BLOCK END

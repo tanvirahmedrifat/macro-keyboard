@@ -75,9 +75,19 @@ LogicalEvent SystemInput_Update() {
 }
 
 void SystemInput_ResetState() {
+    unsigned long now = millis();
     for (int i=0; i<5; i++) {
-        btns[i].isPressed = false;
-        btns[i].holdFired = false;
-        btns[i].hold5sFired = false;
+        btns[i].isPressed     = false;
+        btns[i].holdFired     = false;
+        btns[i].hold5sFired   = false;
+        // FIX: Read the ACTUAL current pin state rather than assuming false.
+        // If the button is still physically held when this is called (e.g. after
+        // a macro abort), setting lastRawState=false causes a spurious state-change
+        // detection on the very next loop, immediately firing a new tap event.
+        // By reading the real state we make the debouncer start stable.
+        btns[i].lastRawState  = (digitalRead(btns[i].pin) == LOW);
+        btns[i].pressTime     = 0;
+        btns[i].releaseTime   = 0;
+        btns[i].lastDebounceTime = now;
     }
 }

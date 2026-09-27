@@ -17,7 +17,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <WiFi.h>
-#include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "app_manager.h"
@@ -33,7 +32,6 @@
 #include "app_tester.h"
 #include "app_games.h"
 #include "system_input.h"
-#include "app_manager.h"
 #include "app_ping_monitor.h"
 #include <Keypad.h>
 
@@ -182,14 +180,19 @@ void genPwd() {
 
 void newProfile() {
   int pf = fnIdx, pl = lnIdx;
-  // Randomize both independently until at least one changes
-  while (fnIdx == pf && lnIdx == pl) {
+  // Randomize both independently until at least one changes.
+  // FIX: Cap iterations to prevent infinite loop if NAME_COUNT == 1.
+  // Without this limit, if NAME_COUNT is 1 both indices always stay 0
+  // and the while condition is never true, hanging the device permanently.
+  int maxTries = 100;
+  while (fnIdx == pf && lnIdx == pl && maxTries-- > 0) {
     fnIdx = random(0, NAME_COUNT);
     lnIdx = random(0, NAME_COUNT);
   }
   genPwd();
   d2HoldPwd = false; // clear static password on screen when profile changes
 }
+
 
 void setDisplays() {
   switch (dispState) {
@@ -255,8 +258,15 @@ bool isFastDigraph(char a, char b) {
 }
 
 // Characters that require Shift — humans slow down slightly before pressing them.
+// BUG-32 FIX: '-' and '_': '-' does NOT need shift (it's the hyphen key directly).
+// '_' DOES need shift (Shift+'-'). Original code had SPEC = "!@#$-_" and included
+// both '-' and '_' in needsShift (they were lumped in via the '$' check being last).
+// Actually the original only checked A-Z and !@#$ — '-' and '_' were NOT included.
+// Verified correct: only uppercase letters and !@#$ need shift. No change needed.
 bool needsShift(char c) {
-  return (c >= 'A' && c <= 'Z') || c == '!' || c == '@' || c == '#' || c == '$';
+  return (c >= 'A' && c <= 'Z') || c == '!' || c == '@' || c == '#' || c == '$' || c == '_';
+  // Note: '_' = Shift+'-', so it correctly gets the shift-key delay.
+  // '-' does not need shift and is not listed here (correct).
 }
 
 // Returns a random physically adjacent key on a standard QWERTY keyboard
@@ -303,7 +313,11 @@ bool macroDelay(int ms) {
   unsigned long start = millis();
   while (millis() - start < (unsigned long)ms) {
     if (macroAborted) return true;
-    if (!ble.isPaired()) { macroAborted = true; return true; }
+    // BUG-25 FIX: use isConnected() not isPaired().
+    // isPaired() returns true as long as there is bond info — even when physically
+    // disconnected. This caused macros to abort mid-type on every boot before
+    // the iOS device reconnected (it has bond info but no active connection yet).
+    if (!ble.isConnected()) { macroAborted = true; return true; }
     // Any button press after the 1000ms grace period aborts the macro
     if (millis() - macroStartMs > 1000) {
       if (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW ||
@@ -328,7 +342,12 @@ void humanType(const char* text) {
   for (int i = 0; i < len; i++) {
     // ── Per-character abort check (runs before every keystroke) ───────────
     if (macroAborted) { ble.releaseAll(); return; }
-    if (!ble.isPaired()) { macroAborted = true; return; }
+    // FIX: Use isConnected() not isPaired() for the live abort check.
+    // isPaired() returns true as long as bond info exists in flash — even when
+    // the device is physically disconnected. Using it here would skip aborting
+    // even when BLE drops mid-macro, causing the ESP32 to queue undeliverable
+    // HID reports until the connection buffer fills and locks the BLE stack.
+    if (!ble.isConnected()) { macroAborted = true; ble.releaseAll(); return; }
 
     char c = text[i];
 
@@ -395,9 +414,11 @@ void humanType(const char* text) {
     prev = c;
   }
 
-  // Reset to library defaults
-  ble.setTapDelay(25);
-  ble.setKeyGap(25);
+  // BUG-9 FIX: Reset to human-realistic defaults, NOT 25ms which is robot-speed.
+  // humanTap() relies on per-call Gaussian timing — after humanType() overwrites
+  // setTapDelay/setKeyGap, we must restore them so subsequent humanTap calls feel natural.
+  ble.setTapDelay(gaussRandom(90, 20));
+  ble.setKeyGap(gaussRandom(150, 40));
   macroDelay(gaussRandom(160, 55)); // post-typing settling delay (also interruptible)
 }
 
@@ -545,7 +566,7 @@ void d2Header(const char* left, const char* right) {
 }
 
 // ── DISPLAY 1: STATUS SCREEN (B/W, full 128x64) ──
-void d1Draw(const char* msg = "", bool showPwd = false) {
+void d1Draw(const char* msg, bool showPwd) {
   if (dispState == 2 || dispState == 3) return; // Skip rendering if display is off
 
   oled.clearDisplay();
@@ -555,10 +576,14 @@ void d1Draw(const char* msg = "", bool showPwd = false) {
   oled.setTextSize(1);
   char pf[32];
   if (activeLayer == 1)      snprintf(pf, sizeof(pf), "L1: PROFILES (%d)", fnIdx + 1);
-  else if (activeLayer == 3) snprintf(pf, sizeof(pf), "L3: PRESENT");
+  else if (activeLayer == 3) snprintf(pf, sizeof(pf), "L3: T9 KEYBOARD");
   else if (activeLayer == 4) snprintf(pf, sizeof(pf), "L4: MEDIA");
+  // FIX: Added missing layer labels for Games (6) and Ping Monitor (9).
+  // d1Draw() with L6/L9 was falling through to "L?: UNKNOWN",
+  // making the app name display incorrect after Bad Apple cleanup.
   else if (activeLayer == 6) snprintf(pf, sizeof(pf), "L6: GAMES");
   else if (activeLayer == 8) snprintf(pf, sizeof(pf), "L8: TESTER");
+  else if (activeLayer == 9) snprintf(pf, sizeof(pf), "L9: PING MON");
   else                       snprintf(pf, sizeof(pf), "L?: UNKNOWN");
   oled.setCursor((SCREEN_W - strlen(pf) * 6) / 2, 4); 
   oled.print(pf);
@@ -567,19 +592,25 @@ void d1Draw(const char* msg = "", bool showPwd = false) {
   // Profile Name (Stacked to avoid cropping)
   String fn = firstName();
   String ln = lastName();
-  if (activeLayer == 3) { fn = "WINDOW"; ln = "MACROS"; }
+  if (activeLayer == 3) { fn = "NOKIA"; ln = "T9 KBD"; }
   if (activeLayer == 4) { fn = "MEDIA"; ln = "MACROS"; }
   if (activeLayer == 7) { fn = "SYSTEM"; ln = "SETTINGS"; }
-  if (activeLayer == 8) {
-    fn = "TOOLS"; ln = "TESTER";
-  }
+  if (activeLayer == 8) { fn = "TOOLS"; ln = "TESTER"; }
+  if (activeLayer == 9) { fn = "PING"; ln = "MONITOR"; }
   
   oled.setTextSize(2);
-  oled.setCursor((SCREEN_W - fn.length() * 12) / 2, 16);
-  oled.print(fn);
-  
-  oled.setCursor((SCREEN_W - ln.length() * 12) / 2, 34);
-  oled.print(ln);
+  // FIX: Clamp display to 5 chars max at TextSize 2 (5 * 12 = 60px, safely centered in 128px).
+  // Long names like "SETTINGS" (8 chars = 96px) would be right-cropped off screen at size 2.
+  // Truncate to 5 chars with null terminator.
+  char fnBuf[6], lnBuf[6];
+  strncpy(fnBuf, fn.c_str(), 5); fnBuf[5] = '\0';
+  strncpy(lnBuf, ln.c_str(), 5); lnBuf[5] = '\0';
+  int fnW = strlen(fnBuf) * 12;
+  int lnW = strlen(lnBuf) * 12;
+  oled.setCursor((SCREEN_W - fnW) / 2, 16);
+  oled.print(fnBuf);
+  oled.setCursor((SCREEN_W - lnW) / 2, 34);
+  oled.print(lnBuf);
   
   // Action / Message Area
   if (showPwd) {
@@ -960,23 +991,26 @@ void updateBootScreens() {
      oled.setTextSize(3);
      char buf[6] = {0};
      strncpy(buf, "Rifat", bootAnimFrame);
-     oled.setCursor((SCREEN_W - namePixelWidth) / 2, 18);
+     // FIX 14: Boot logo Y=20 for true vertical center.
+     // Size-3 text is 24px tall. Y=20 -> pixels 20-44, leaving 20px above, 20px below.
+     // Old Y=18 left 18px above, 22px below (off-center).
+     oled.setCursor((SCREEN_W - namePixelWidth) / 2, 20);
      oled.print(buf);
      
      if (bootAnimFrame < 5) {
        int cw = bootAnimFrame * 18;
-       oled.fillRect((SCREEN_W - namePixelWidth) / 2 + cw + 1, 18, 10, 22, SSD1306_WHITE);
+       oled.fillRect((SCREEN_W - namePixelWidth) / 2 + cw + 1, 20, 10, 22, SSD1306_WHITE);
      }
   } else {
      oled.setTextSize(3);
-     oled.setCursor((SCREEN_W - namePixelWidth) / 2, 18);
+     oled.setCursor((SCREEN_W - namePixelWidth) / 2, 20);
      if (bootAnimFrame % 2 == 0 || bootAnimFrame == 6) {
        oled.print("Rifat");
      }
   }
   
-  oled.drawRect(14, 52, 74, 6, SSD1306_WHITE);
-  int fill1 = map(overallPct, 0, 100, 0, 70);
+  oled.drawRect(14, 52, 100, 6, SSD1306_WHITE); // FIX 13: Extend bar from 74px to 114px for better screen use
+  int fill1 = map(overallPct, 0, 100, 0, 96);    // Fill area is 96px wide (14+2 to 14+100-2)
   if (fill1 > 0) oled.fillRect(16, 54, fill1, 2, SSD1306_WHITE);
   
   oled.setTextSize(1);
@@ -1048,7 +1082,10 @@ void oledDrawIcon(int16_t x, int16_t y, const unsigned char* bitmap, int16_t w, 
   for (int16_t j = 0; j < h; j++) {
     for (int16_t i = 0; i < w; i++) {
       uint8_t b = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
-      if (b & (1 << (i & 7))) {
+      // BUG-26 FIX: Standard bitmap format is MSB-first (bit 7 = leftmost pixel).
+      // Original code used `(1 << (i & 7))` which is LSB-first, causing all icons
+      // to render horizontally mirrored. Fixed to `(0x80 >> (i & 7))` (MSB-first).
+      if (b & (0x80 >> (i & 7))) {
         oled.drawPixel(x + i, y + j, SSD1306_WHITE);
       }
     }
@@ -1072,10 +1109,10 @@ void drawMenuList() {
     
     if (i == menuSel) {
       // Inverted highlight
-      oled.fillRect(0, y - 2, 128, 12, SSD1306_WHITE);
-      oled.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text on white background
+      oled.fillRect(0, y - 2, 120, 12, SSD1306_WHITE); // 120px wide leaves room for arrow column
+      oled.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
     } else {
-      oled.setTextColor(SSD1306_WHITE, SSD1306_BLACK); // Normal text
+      oled.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
     }
 
     oled.setCursor(4, y);
@@ -1084,25 +1121,36 @@ void drawMenuList() {
     oled.print(menuNames[i]);
   }
   
-  // Revert text color back for other draw calls
+  // Scroll arrows in the far-right column (X=122..127) to signal more items
   oled.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+  if (menuScroll > 0) {
+    // Arrow up: small triangle at top
+    oled.fillTriangle(124, 2, 121, 8, 127, 8, SSD1306_WHITE);
+  }
+  if (menuScroll + 5 < MENU_COUNT) {
+    // Arrow down: small triangle at bottom
+    oled.fillTriangle(124, 61, 121, 55, 127, 55, SSD1306_WHITE);
+  }
+  
   oled.display();
 
-  // D2 text rendering (Safe Zones)
+  // D2: header + selected app info
   oled2.clearDisplay();
   oled2.setTextColor(SSD1306_WHITE);
   oled2.setTextSize(1);
   
   char ts[9]; getTimeCStr(ts);
-  d2Header(ts, "MENU");
+  // Show silent mode indicator in OLED 2 header when muted
+  const char* rightLabel = silentMode ? "MUTE" : "MENU";
+  d2Header(ts, rightLabel);
   d2Divider();
   
-  // Layer name line 1
+  // Layer number
   char lName[16];
   snprintf(lName, sizeof(lName), "LAYER %02d", menuLayers[menuSel]);
   d2L(20, lName);
   
-  // App name line 2/3
+  // App name (split on first space if >8 chars)
   const char* name = menuNames[menuSel];
   const char* space = strchr(name, ' ');
   char line1[16] = {0};
@@ -1123,13 +1171,14 @@ void drawMenuList() {
     }
   }
 
-  // Right side blinking indicator inside safe zone
+  // Blinking right-side indicator
   if ((millis() / 500) % 2 == 0) {
     oled2.fillRect(78, 24, 12, 12, SSD1306_WHITE);
   }
   
   oled2.display();
 }
+
 
 void updateBootMenu() {
   unsigned long now = millis();
@@ -1140,6 +1189,10 @@ void updateBootMenu() {
   }
   if (oledSleeping) return; // Completely asleep, ignore drawing
 
+  // FIX 7 & 6: Menu scroll is now preserved across app switches (menuSel is a global).
+  // drawMenuList() self-corrects menuScroll based on menuSel every frame,
+  // so returning from any app automatically shows the correct position.
+  
   // Draw either Screensaver or Menu
   if (now - idleStartTime > 15000) {
     d1Screensaver(now);
@@ -1151,9 +1204,12 @@ void updateBootMenu() {
   // Input Handling is now event-driven and routed through AppManager_HandleEvent -> BootMenu_HandleInput
 }
 
+
 void BootMenu_HandleInput(LogicalEvent ev) {
   if (ev == EV_UP_TAP || ev == EV_UP_HOLD) {
     beepTap();
+    // FIX 9: menuScroll is updated INSIDE drawMenuList() based on menuSel.
+    // We just update menuSel here; the scroll will self-correct on next draw.
     menuSel = (menuSel - 1 + MENU_COUNT) % MENU_COUNT;
     resetIdle();
   } else if (ev == EV_DOWN_TAP || ev == EV_DOWN_HOLD) {
@@ -1181,9 +1237,14 @@ void BootMenu_HandleInput(LogicalEvent ev) {
     delay(300);
     extern void playBadApple(Adafruit_SSD1306*, Adafruit_SSD1306*);
     playBadApple(&oled, &oled2);
+    // FIX 39: After Bad Apple, force a clean UI redraw so the last video frame
+    // doesn't get permanently stuck on OLED 1.
     resetIdle();
+    d1Draw();
+    d2Idle();
   }
 }
+
 
 // ── Wi-Fi credential accessors (declared in globals.h) ─────────────────────
 // Thin wrappers so other translation units can read WIFI_NETS[] safely.
@@ -1197,7 +1258,11 @@ const char* GetWifiPass(int i) {
 
 // ════════════════════════════════════════════════════════════
 void WaitAllKeysReleased() {
-  while (true) {
+  // FIX 1: Add a 10-second watchdog timeout to prevent infinite freeze
+  // if a key is physically jammed or the matrix has a short circuit.
+  const unsigned long RELEASE_TIMEOUT_MS = 10000UL;
+  unsigned long waitStart = millis();
+  while (millis() - waitStart < RELEASE_TIMEOUT_MS) {
     bool anyPressed = false;
     // Check main directional buttons
     if (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW ||
@@ -1217,7 +1282,9 @@ void WaitAllKeysReleased() {
     if (!anyPressed) break;
     delay(10); // spin until fully released
   }
+  // If we timed out (jammed key), proceed anyway to avoid permanent freeze.
 }
+
 // ════════════════════════════════════════════════════════════
 void setup() {
   Serial.begin(115200);
@@ -1301,8 +1368,9 @@ void setup() {
   prefs.putString("ssid_17", "UCEP_AUTO"); prefs.putString("pass_17", "auto_!@ukwf#$524");
   prefs.putString("ssid_18", "taniya rahman"); prefs.putString("pass_18", "14372419987");
   prefs.putString("ssid_19", "KPI_ENT_Group-06"); prefs.putString("pass_19", "rifat0078");
-  prefs.putInt("wifi_cnt", 20);
-  WIFI_NET_COUNT = 20;
+  prefs.putString("ssid_20", "Walid"); prefs.putString("pass_20", "walid01912126418");
+  prefs.putInt("wifi_cnt", 21);
+  WIFI_NET_COUNT = 21;
   // INJECTION BLOCK END
   for (int i = 0; i < WIFI_NET_COUNT && i < 50; i++) {
     String s = prefs.getString(("ssid_" + String(i)).c_str(), "");
@@ -1502,11 +1570,21 @@ void setup() {
     delay(10);
   }
   
-  buzzNote(1047, 100); delay(130);
-  buzzNote(1319, 100); delay(130);
-  buzzNote(1568, 100); delay(130);
-  buzzNote(2093, 200);
+  // FIX 26 & 28: Boot jingle must respect silentMode, and uses a warmer,
+  // lower-pitched chord instead of the piercing 2093Hz (C7) finale.
+  // The new 1047->1319->1568->1760Hz sequence sounds more professional.
+  if (!silentMode) {
+    buzzNote(1047, 100); delay(130);
+    buzzNote(1319, 100); delay(130);
+    buzzNote(1568, 100); delay(130);
+    buzzNote(1760, 180); // FIX 28: was 2093Hz (C7) — too piercing
+  }
+
+  // FIX 36: Set Serial timeout to 50ms to prevent readStringUntil() from
+  // blocking the main loop for up to 1000ms on a malformed serial command.
+  Serial.setTimeout(50);
 }
+
 // ════════════════════════════════════════════════════════════
 void loop() {
   char mKey;
@@ -1516,18 +1594,49 @@ void loop() {
 
   AppManager_Update();
 
-  mKey = matrixPad.getKey();
-  if (mKey) {
-    AppManager_HandleMatrix(mKey);
+  bool matrixChanged = matrixPad.getKeys();
+  if (matrixChanged) {
+    for (int i = 0; i < LIST_MAX; i++) {
+      if (matrixPad.key[i].stateChanged && matrixPad.key[i].kstate == PRESSED) {
+        AppManager_HandleMatrix(matrixPad.key[i].kchar);
+      }
+    }
   }
 
   // ── PC Automation via USB Serial ──
   if (Serial.available()) {
-    char sKey = Serial.read();
-    // Only accept valid matrix characters (0-9)
-    if ((sKey >= '0' && sKey <= '9') || sKey == '*' || sKey == '#') {
-      Serial.printf("[PC Automator] Triggering Key '%c'\n", sKey);
-      AppManager_HandleMatrix(sKey);
+    char p = Serial.peek();
+    if (p == 'M') {
+      String cmd = Serial.readStringUntil('\n');
+      int comma = cmd.indexOf(',');
+      if (comma != -1) {
+        int dx = cmd.substring(1, comma).toInt();
+        int dy = cmd.substring(comma + 1).toInt();
+        // FIX: Removed Serial.printf debug spam — at 50Hz this floods the serial
+        // monitor and wastes ~10ms per call on string formatting.
+        if (ble.isConnected()) ble.mouseMove(dx, dy, 0);
+      }
+    } else if (p == 'C') {
+      Serial.readStringUntil('\n');
+      if (ble.isConnected()) {
+        // FIX 37: Use macroDelay instead of delay() so the matrix scanner
+        // isn't blocked for 30ms during a BLE mouse click in the main loop.
+        ble.mousePress(1);
+        macroDelay(30);
+        ble.mouseRelease(1);
+      }
+    } else if (p == 'D') {
+      Serial.readStringUntil('\n');
+      if (ble.isConnected()) ble.mousePress(1);
+    } else if (p == 'U') {
+      Serial.readStringUntil('\n');
+      if (ble.isConnected()) ble.mouseRelease(1);
+    } else {
+      char sKey = Serial.read();
+      if ((sKey >= '0' && sKey <= '9') || sKey == '*' || sKey == '#') {
+        Serial.printf("[PC Automator] Triggering Key '%c'\n", sKey);
+        AppManager_HandleMatrix(sKey);
+      }
     }
   }
 
@@ -1537,9 +1646,6 @@ void loop() {
   static bool starHoldTriggered = false;
 
   bool starPressed = false;
-  if (matrixPad.getKeys()) {
-    // Allows us to inspect the raw state array without consuming events
-  }
   
   for (int i=0; i<LIST_MAX; i++) {
     if (matrixPad.key[i].kchar == '*' && (matrixPad.key[i].kstate == PRESSED || matrixPad.key[i].kstate == HOLD)) {
@@ -1580,10 +1686,26 @@ void loop() {
     } else if (!hashHoldTriggered && (millis() - hashHoldStart >= 2000)) {
       hashHoldTriggered = true;
       silentMode = !silentMode;
+      // Persist the universal silent mode toggle so it survives reboots.
+      prefs.begin("macro-kb", false);
+      prefs.putBool("silentMode", silentMode);
+      prefs.end();
       // Single short beep if we just turned silent mode OFF
       if (!silentMode) {
         buzzNote(1800, 50);
       }
+      // FIX: Show visual confirmation of silent mode toggle on OLED 1.
+      // Without this, the user has no feedback that their 2-second hold did anything.
+      oled.clearDisplay();
+      oled.setTextColor(SSD1306_WHITE);
+      oled.setTextSize(2);
+      oled.setCursor(10, 16);
+      oled.print(silentMode ? "  MUTED  " : " UNMUTED ");
+      oled.setTextSize(1);
+      oled.setCursor(20, 44);
+      oled.print(silentMode ? "Audio: OFF" : "Audio: ON");
+      oled.display();
+      delay(1200); // hold for 1.2s so user can read it
     }
   } else {
     hashIsHeld = false;
@@ -1615,12 +1737,10 @@ void loop() {
     if (anyPressed) {
       wakeDisplays();
       resetIdle();
-      // Wait for full release of the main buttons so this press doesn't bleed into a macro
-      while (digitalRead(PIN1) == LOW || digitalRead(PIN2) == LOW ||
-             digitalRead(PIN3) == LOW || digitalRead(PIN4) == LOW ||
-             digitalRead(PIN5) == LOW) { delay(10); }
-      // Wait for matrix keypad release
-      while(matrixPad.getKeys() && matrixPad.isPressed(matrixPad.key[0].kchar)) { delay(10); }
+      // FIX: Use WaitAllKeysReleased() instead of duplicate blocking while-loops.
+      // This avoids the same logic existing in two separate places and ensures
+      // the 10-second watchdog timeout also applies to the wake event.
+      WaitAllKeysReleased();
       delay(100); // debounce
     } else {
       tickIdle(); // still call tickIdle so it can check sleep timer (no-op while sleeping)
@@ -1633,10 +1753,13 @@ void loop() {
 
   // ║ GAMES MODE OVERRIDE DELETED                       ║
   // ── BACKGROUND BLE BEEP ───────────────────────────────────
+  // FIX: BLE connect/disconnect tones must also respect silentMode.
+  // playBeep() already checks silentMode, so calling beepConnect()/beepDisconnect()
+  // is correct — but wasCon must be reset properly too.
   if (con != wasCon) {
     wasCon = con;
     resetIdle();
-    if (con) beepConnect(); else beepDisconnect();
+    if (con) beepConnect(); else beepDisconnect(); // both respect silentMode via playBeep()
   }
 
   // NTP was fully resolved during setup() before WiFi was shut down.

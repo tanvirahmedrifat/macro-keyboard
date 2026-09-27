@@ -99,6 +99,39 @@ static const uint8_t _hidReportDescriptor[] = {
     0x95, 0x01,        //   Report Count (1)
     0x81, 0x00,        //   Input (Data, Array, Absolute)
     0xC0,              // End Collection (Consumer Control)
+
+    // ── Mouse (Report ID 0x03) ─────────────────────────────────────────
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x02,        // Usage (Mouse)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x03,        //   Report ID (3)
+    0x09, 0x01,        //   Usage (Pointer)
+    0xA1, 0x00,        //   Collection (Physical)
+    // Buttons (3 buttons)
+    0x05, 0x09,        //     Usage Page (Button)
+    0x19, 0x01,        //     Usage Minimum (1)
+    0x29, 0x03,        //     Usage Maximum (3)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x95, 0x03,        //     Report Count (3)
+    0x75, 0x01,        //     Report Size (1 bit)
+    0x81, 0x02,        //     Input (Data, Variable, Absolute)
+    // Padding (5 bits)
+    0x95, 0x01,        //     Report Count (1)
+    0x75, 0x05,        //     Report Size (5 bits)
+    0x81, 0x03,        //     Input (Constant)
+    // X, Y, Wheel (3 bytes)
+    0x05, 0x01,        //     Usage Page (Generic Desktop)
+    0x09, 0x30,        //     Usage (X)
+    0x09, 0x31,        //     Usage (Y)
+    0x09, 0x38,        //     Usage (Wheel)
+    0x15, 0x81,        //     Logical Minimum (-127)
+    0x25, 0x7F,        //     Logical Maximum (127)
+    0x75, 0x08,        //     Report Size (8 bits)
+    0x95, 0x03,        //     Report Count (3)
+    0x81, 0x06,        //     Input (Data, Variable, Relative)
+    0xC0,              //   End Collection
+    0xC0               // End Collection (Mouse)
 };
 
 // ─── ASCII → HID Lookup Tables ───────────────────────────────────────────
@@ -271,6 +304,7 @@ HijelHID_BLEKeyboard::HijelHID_BLEKeyboard(const char* deviceName,
       _keyGap(HID_DEFAULT_KEY_GAP_MS),
       _logLevel(HIDLogLevel::Off),
       _useRandomAddress(false),
+      _mouseButtons(0),
       _state(_BLEState::Stopped),
       _connected(false),
       _authenticated(false),
@@ -295,6 +329,7 @@ HijelHID_BLEKeyboard::HijelHID_BLEKeyboard(const char* deviceName,
       _pKeyboardInput(nullptr),
       _pKeyboardOutput(nullptr),
       _pConsumerInput(nullptr),
+      _pMouseInput(nullptr),
       _pServerCb(nullptr),
       _pLEDCb(nullptr)
 {
@@ -495,6 +530,7 @@ void HijelHID_BLEKeyboard::begin() {
     _pKeyboardInput  = _pHID->getInputReport(HID_REPORT_ID_KEYBOARD);
     _pKeyboardOutput = _pHID->getOutputReport(HID_REPORT_ID_KEYBOARD);
     _pConsumerInput  = _pHID->getInputReport(HID_REPORT_ID_CONSUMER);
+    _pMouseInput     = _pHID->getInputReport(HID_REPORT_ID_MOUSE);
 
     // Register LED output callback if the characteristic was created
     if (_pKeyboardOutput != nullptr) {
@@ -581,6 +617,7 @@ void HijelHID_BLEKeyboard::end() {
     memset(_keyReport, 0, sizeof(_keyReport));
     _ledState = 0;
     _consumerActive = false;
+    _mouseButtons = 0;
     _reportPrimingNeeded = true;
 
     _logN("Stopped. Call begin() to restart.");
@@ -623,9 +660,10 @@ void HijelHID_BLEKeyboard::kill() {
     _pKeyboardInput  = nullptr;
     _pKeyboardOutput = nullptr;
     _pConsumerInput  = nullptr;
+    _pMouseInput     = nullptr;
 
-    _state = _BLEState::Killed;
-    _logN("BLE killed. begin() will be refused from this point.");
+    _state = _BLEState::Stopped; // BUG FIX: allow begin() to re-init after kill()
+    _logN("BLE killed. It can be restarted cleanly with begin().");
 
     // NOTE: A small one-time memory leak remains after kill().
     // This includes a known leak in the ESP-IDF NimBLE port's init/deinit
@@ -914,6 +952,48 @@ void HijelHID_BLEKeyboard::releaseAll() {
         _consumerActive = false;
         _sendConsumerReport(0x0000);
     }
+    if (_mouseButtons != 0) {
+        _mouseButtons = 0;
+        mouseMove(0, 0, 0); // Re-sends with buttons = 0
+    }
+}
+
+// ─── Mouse ───────────────────────────────────────────────────────────────
+
+void HijelHID_BLEKeyboard::mouseMove(int8_t x, int8_t y, int8_t wheel) {
+    if (!_connected || _pMouseInput == nullptr) return;
+
+    if (_pendingIdleTransition) {
+        _transitionToActive();
+    } else if (_connState == _ConnState::Active) {
+        _startIdleTimer();
+    }
+
+    uint8_t m[4];
+    m[0] = _mouseButtons;
+    m[1] = x;
+    m[2] = y;
+    m[3] = wheel;
+    _pMouseInput->setValue(m, 4);
+    _pMouseInput->notify();
+    _lastReportMs = millis();
+}
+
+void HijelHID_BLEKeyboard::mousePress(uint8_t buttons) {
+    _mouseButtons |= buttons;
+    mouseMove(0, 0, 0);
+}
+
+void HijelHID_BLEKeyboard::mouseRelease(uint8_t buttons) {
+    _mouseButtons &= ~buttons;
+    mouseMove(0, 0, 0);
+}
+
+void HijelHID_BLEKeyboard::mouseClick(uint8_t buttons) {
+    mousePress(buttons);
+    delay(_tapDelay);
+    mouseRelease(buttons);
+    delay(_keyGap);
 }
 
 // ─── Tap ──────────────────────────────────────────────────────────────────

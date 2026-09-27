@@ -16,3 +16,8 @@ test_sizeof
 # OS
 .DS_Store
 Thumbs.db
+
+# Virtual Environments
+.venv/
+venv/
+

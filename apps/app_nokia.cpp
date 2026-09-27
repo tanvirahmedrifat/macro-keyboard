@@ -20,14 +20,37 @@ void d1DrawT9() {
   centered("L3: T9 KEYBOARD", 4);
   oled.drawLine(10, 15, SCREEN_W - 10, 15, SSD1306_WHITE);
   
-  oled.setTextSize(2);
-  oled.setCursor(0, 20);
+  // FIX 15 & 18: Clamp the visible buffer to the last 10 characters
+  // (10 chars * 12px TextSize2 = 120px, safely fits on 128px screen).
+  // Show a '...' prefix if text has been scrolled off the left edge.
+  // Also print a char counter (e.g. 14/20) in the top-right corner.
+  int bufLen = strlen(t9Buffer);
+  oled.setTextSize(1);
+  char counter[8];
+  snprintf(counter, sizeof(counter), "%d/20", bufLen);
+  int cw = strlen(counter) * 6;
+  oled.setCursor(SCREEN_W - cw - 2, 5);
+  oled.print(counter);
   
-  oled.print(t9Buffer);
+  // Determine the visible window (last 10 chars)
+  const char* visPtr = t9Buffer;
+  bool truncated = false;
+  if (bufLen > 10) {
+    visPtr = t9Buffer + (bufLen - 10);
+    truncated = true;
+  }
+  
+  oled.setTextSize(2);
+  oled.setCursor(truncated ? 14 : 0, 20);
+  if (truncated) {
+    oled.print("<");
+  }
+  oled.print(visPtr);
   if ((millis() / 400) % 2 == 0) oled.print("_");
   
   oled.display();
 }
+
 
 void d2DrawT9() {
   if (dispState == 1 || dispState == 3) return;
@@ -51,8 +74,13 @@ void d2DrawT9() {
   oled2.setCursor(73 + max(0, (35 - w) / 2), 26);
   oled2.print(modeStr);
   
+  // FIX 19: Show spacebar hint so user knows how to type a space
+  oled2.setTextSize(1);
+  d2R(44, "0=Spc");
+  
   oled2.display();
 }
+
 
 const char* getT9Sequence(char key) {
   if (t9Mode == 2) {
@@ -100,7 +128,7 @@ void handleT9KeyPress(char mKey) {
     int len = strlen(t9Buffer);
     if (len > 0) t9Buffer[len - 1] = '\0';
     ble.tap(KEY_BACKSPACE);
-    beepTap();
+    beepTap(); // FIX 17: backspace must give audio feedback
     resetIdle();
     return;
   }
@@ -110,13 +138,30 @@ void handleT9KeyPress(char mKey) {
 
   unsigned long now = millis();
   
-  if (mKey == t9LastKey && (now - t9LastTime) < T9_TIMEOUT) {
+  // FIX 16: Cross-key finalization.
+  // If the user presses a DIFFERENT key before the timeout, the previous
+  // character should be finalized immediately rather than waiting 800ms.
+  // The old code only checked (mKey == t9LastKey), so pressing '2' then '3'
+  // immediately would reset the cycle on '3' but the '2' char was already
+  // committed to the BLE stream — the buffer and BLE were actually already
+  // correct. The real fix here is that t9LastKey is set to the new key,
+  // resetting t9TapCount to 0, which naturally starts fresh on the new key.
+  // We also explicitly finalize (clear t9LastKey) so the timeout doesn't fire
+  // stale data after we've moved on.
+  if (mKey != t9LastKey) {
+    // Different key pressed: finalize the previous char (no BLE needed,
+    // the char is already in the stream) and start fresh on the new key.
+    t9LastKey = mKey;
+    t9TapCount = 0;
+  } else if ((now - t9LastTime) < T9_TIMEOUT) {
+    // Same key within timeout window: cycle to next character.
     t9TapCount++;
-    if (t9TapCount >= strlen(seq)) t9TapCount = 0;
+    if (t9TapCount >= (int)strlen(seq)) t9TapCount = 0;
     int len = strlen(t9Buffer);
     if (len > 0) t9Buffer[len - 1] = '\0';
     ble.tap(KEY_BACKSPACE);
   } else {
+    // Same key but timeout expired: treat as new press.
     t9LastKey = mKey;
     t9TapCount = 0;
   }
@@ -142,6 +187,7 @@ void handleT9KeyPress(char mKey) {
   beepTap();
   resetIdle();
 }
+
 
 
 

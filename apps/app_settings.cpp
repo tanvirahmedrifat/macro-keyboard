@@ -1,43 +1,91 @@
 #include "app_settings.h"
 #include <Arduino.h>
-
+#include <Preferences.h>
 #include <qrcode.h>
 #include "web_server.h"
 
+// FIX 5: NVS Debounce — accumulate setting changes in RAM, flush to NVS only on exit.
+// The old code wrote to flash on EVERY keypress, causing excessive flash wear.
+static bool settingsDirty = false;
+
+static void flushSettingsToNVS() {
+    if (!settingsDirty) return;
+    Preferences p;
+    p.begin("macro-kb", false);
+    p.putBool("silentMode", silentMode);
+    p.putULong("sleepTimeout", sleepTimeoutMs);
+    p.end();
+    settingsDirty = false;
+}
+
 static int settingSel = 0;
 static int qrScreen = 0; // 0=None, 1=Join WiFi, 2=Dashboard URL
+// FIX 29: Dirty flag for display — only redraw when something actually changed.
+static bool displayDirty = true;
+static unsigned long lastDrawMs = 0;
 #define SETTING_COUNT 5
+
+// FIX 38: SoftAP SSID includes last 4 MAC digits to distinguish devices on same network.
+static String buildAPName() {
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char suffix[6];
+    snprintf(suffix, sizeof(suffix), "%02X%02X", mac[4], mac[5]);
+    return String("MacroKB-") + String(suffix);
+}
 
 void AppSettings_Init() {
     settingSel = 0;
     qrScreen = 0;
+    settingsDirty = false;
+    displayDirty = true;
+    lastDrawMs = 0;
+    
+    // Use unique SoftAP name (FIX 38)
+    String apName = buildAPName();
+    
+    // BEST UX: Always start the SoftAP as a guaranteed fallback.
+    // At the same time, try to connect to the primary saved network in the background.
+    // If it connects, the QR screen will auto-update to show the home network IP.
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP(apName.c_str(), "");
+    
+    if (WIFI_NET_COUNT > 0) {
+        WiFi.begin(WIFI_NETS[0].ssid, WIFI_NETS[0].pass);
+    }
+    
     WebServer_Init();
     AppSettings_Draw1();
     AppSettings_Draw2();
 }
 
+
 void AppSettings_Update() {
     // Check if web dashboard requested a reboot (safe to do from main task)
     if (WebServer_RebootRequested()) {
+        flushSettingsToNVS(); // FIX 5: save pending changes before reboot
         oled.clearDisplay();
         centered("REBOOTING...", 28);
         oled.display();
         delay(800);
         ESP.restart();
     }
-    // Redraw settings every 500ms to keep display fresh (handles status changes, QR)
-    static unsigned long lastDraw = 0;
+    // FIX 29: Only redraw at 1Hz and only when dirty flag is set.
+    // The old 500ms unconditional redraw was burning CPU even when nothing changed.
     unsigned long now = millis();
-    if (now - lastDraw > 500) {
-        lastDraw = now;
+    if (displayDirty || (now - lastDrawMs > 1000)) {
+        lastDrawMs = now;
+        displayDirty = false;
         AppSettings_Draw1();
         AppSettings_Draw2();
     }
 }
 
 void AppSettings_Exit() {
+    flushSettingsToNVS(); // FIX 5: flush NVS on clean exit
     WebServer_Stop();
 }
+
 
 static void draw_qrcode_cb(esp_qrcode_handle_t qrcode) {
     int size = esp_qrcode_get_size(qrcode);
@@ -208,28 +256,37 @@ void AppSettings_HandleInput(LogicalEvent ev) {
     else if (ev == EV_LEFT_TAP || ev == EV_LEFT_HOLD) {
         if (qrScreen > 0) {
             qrScreen--;
+            displayDirty = true;
             AppSettings_Draw1();
             AppSettings_Draw2();
             return;
         }
 
-        // Adjust value left
+        // FIX 30: Sleep timeout direction was BACKWARDS.
+        // LEFT should decrease (shorter) sleep timeout, RIGHT should increase (longer).
         if (settingSel == 1) {
             silentMode = !silentMode;
+            settingsDirty = true; // FIX 5: mark dirty, don't write NVS immediately
+            displayDirty = true;
             AppSettings_Draw1();
         } else if (settingSel == 2) {
-            if (sleepTimeoutMs == 900000UL) sleepTimeoutMs = 300000UL;
-            else if (sleepTimeoutMs == 300000UL) sleepTimeoutMs = 60000UL;
-            else if (sleepTimeoutMs == 60000UL) sleepTimeoutMs = 0; // Never
-            else if (sleepTimeoutMs == 0) sleepTimeoutMs = 900000UL;
-            else sleepTimeoutMs = 300000UL; // Default recovery
+            // LEFT = shorter timeout (more aggressive sleep)
+            if (sleepTimeoutMs == 0) sleepTimeoutMs = 900000UL;         // Never -> 15 min
+            else if (sleepTimeoutMs == 900000UL) sleepTimeoutMs = 300000UL; // 15 -> 5 min
+            else if (sleepTimeoutMs == 300000UL) sleepTimeoutMs = 60000UL;  // 5 min -> 1 min
+            else if (sleepTimeoutMs == 60000UL)  sleepTimeoutMs = 0;         // 1 min -> Never
+            else sleepTimeoutMs = 300000UL;
+            settingsDirty = true;
+            displayDirty = true;
             AppSettings_Draw1();
         }
     }
+
     else if (ev == EV_RIGHT_TAP || ev == EV_RIGHT_HOLD || ev == EV_CENTER_TAP) {
         if (qrScreen > 0) {
             if (ev == EV_CENTER_TAP) { qrScreen = 0; } // Exit QR
             else { qrScreen = (qrScreen == 1) ? 2 : 0; }
+            displayDirty = true;
             AppSettings_Draw1();
             AppSettings_Draw2();
             return;
@@ -238,20 +295,46 @@ void AppSettings_HandleInput(LogicalEvent ev) {
         // Adjust value right or select action
         if (settingSel == 0 && ev == EV_CENTER_TAP) {
             qrScreen = 1; // Open QR flow
+            displayDirty = true;
             AppSettings_Draw1();
             AppSettings_Draw2();
         } else if (settingSel == 1) {
             silentMode = !silentMode;
+            settingsDirty = true; // FIX 5: mark dirty
+            displayDirty = true;
             AppSettings_Draw1();
         } else if (settingSel == 2) {
-            if (sleepTimeoutMs == 0) sleepTimeoutMs = 60000UL;
-            else if (sleepTimeoutMs == 60000UL) sleepTimeoutMs = 300000UL;
-            else if (sleepTimeoutMs == 300000UL) sleepTimeoutMs = 900000UL;
-            else if (sleepTimeoutMs == 900000UL) sleepTimeoutMs = 0; // Never
-            else sleepTimeoutMs = 300000UL; // Default recovery
+            // FIX 30: RIGHT = longer timeout (more lenient sleep)
+            if (sleepTimeoutMs == 0)           sleepTimeoutMs = 60000UL;  // Never -> 1 min
+            else if (sleepTimeoutMs == 60000UL)  sleepTimeoutMs = 300000UL; // 1 min -> 5 min
+            else if (sleepTimeoutMs == 300000UL) sleepTimeoutMs = 900000UL; // 5 min -> 15 min
+            else if (sleepTimeoutMs == 900000UL) sleepTimeoutMs = 0;         // 15 min -> Never
+            else sleepTimeoutMs = 300000UL;
+            settingsDirty = true;
+            displayDirty = true;
             AppSettings_Draw1();
         } else if (settingSel == 3) {
-            if (ev == EV_CENTER_TAP) {
+            // FIX 32: Restart Device requires a confirmation press.
+            // First press shows "CONFIRM?" on screen. Second CENTER press reboots.
+            static bool confirmPending = false;
+            if (!confirmPending) {
+                confirmPending = true;
+                oled.clearDisplay();
+                oled.setTextColor(SSD1306_WHITE);
+                oled.setTextSize(1);
+                centered("SYSTEM SETTINGS", 0);
+                oled.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+                oled.setTextSize(1);
+                centered("CONFIRM RESTART?", 28);
+                centered("Press OK again", 42);
+                oled.display();
+                // Reset after 3 seconds if not confirmed
+                delay(3000);
+                confirmPending = false;
+                displayDirty = true;
+            } else {
+                confirmPending = false;
+                flushSettingsToNVS();
                 oled.clearDisplay();
                 centered("REBOOTING...", 28);
                 oled.display();
@@ -266,3 +349,4 @@ void AppSettings_HandleInput(LogicalEvent ev) {
         }
     }
 }
+

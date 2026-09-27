@@ -1,22 +1,50 @@
 [
     {
-        "text": "First name",
+        "text": "Enter your name",
         "key": "1",
-        "name": "First Name Form"
+        "name": "First Name Form",
+        "confidence": 60
     },
     {
-        "text": "Month",
+        "text": "birthday",
         "key": "2",
-        "name": "Birth Date Form"
+        "name": "Birth Date Form",
+        "confidence": 80
     },
     {
-        "text": "Username",
+        "text": "create gmail",
         "key": "3",
-        "name": "Username Form"
+        "name": "Username Form",
+        "confidence": 100
     },
     {
-        "text": "Password",
+        "text": "strong",
         "key": "4",
-        "name": "Password Form"
+        "name": "Password Form",
+        "confidence": 80
+    },
+    {
+        "text": "",
+        "key": "5",
+        "name": "Notes Macro",
+        "confidence": 80
+    },
+    {
+        "text": "",
+        "key": "6",
+        "name": "Clear History",
+        "confidence": 80
+    },
+    {
+        "text": "",
+        "key": "7",
+        "name": "Random Time Zone",
+        "confidence": 80
+    },
+    {
+        "text": "",
+        "key": "0",
+        "name": "New Profile",
+        "confidence": 80
     }
 ]

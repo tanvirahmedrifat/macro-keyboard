@@ -93,12 +93,16 @@ void GamePong_Update() {
             oled.setTextColor(SSD1306_WHITE);
             oled.setTextSize(2);
             if (pScore >= WIN_SCORE) {
-                oled.setCursor(15, 25);
+                oled.setCursor(15, 10);
                 oled.print("YOU WIN!");
             } else {
-                oled.setCursor(15, 25);
+                oled.setCursor(15, 10);
                 oled.print("CPU WINS");
             }
+            // FIX 24: Show restart prompt so player isn't left wondering what to do.
+            oled.setTextSize(1);
+            oled.setCursor(10, 40);
+            oled.print("SELECT: Play Again");
             oled.display();
             redrawNeeded = false;
         }
@@ -114,10 +118,14 @@ void GamePong_Update() {
         if (digitalRead(PIN1) == LOW) pY = max(0, pY - 3);
         if (digitalRead(PIN2) == LOW) pY = min(SCREEN_H - PAD_H, pY + 3);
 
-        // CPU Movement
+        // FIX 23: AI humanization — cap the AI paddle speed so it can be beaten.
+        // The old code moved the paddle until `mid` exactly reached the ball Y,
+        // making perfect tracking possible at any speed. Capping movement at 2px
+        // per frame (same as the ball's initial vy) gives the player a fair chance.
         int mid = cY + PAD_H / 2;
-        if (mid < (int)by - 1) cY = min(SCREEN_H - PAD_H, cY + 2);
-        if (mid > (int)by + 1) cY = max(0, cY - 2);
+        int aiSpeed = 2; // pixels per frame — deliberately limited to be beatable
+        if (mid < (int)by - 2) cY = min(SCREEN_H - PAD_H, cY + aiSpeed);
+        if (mid > (int)by + 2) cY = max(0, cY - aiSpeed);
 
         // Ball Physics
         bx += vx;
@@ -160,19 +168,20 @@ void GamePong_Update() {
         // Scoring
         if (bx < 0) {
             cScore++;
-            beepTap(); // Error/low beep
+            beepTap();
             bx = 64; by = 32;
-            vx = 2.5f; vy = 1.8f;
+            // BUG-27 FIX: vy accumulated from multiple paddle hits and was NOT reset on score.
+            // After several rallies vy could be ±4.5f permanently, making the ball vertically
+            // unplayable. Reset both velocities fresh on each point.
+            vx = 2.5f; vy = (random(2) == 0 ? 1.8f : -1.8f);
             pY = 25; cY = 25;
             needsStatusRedraw = true;
-            // A tiny non-blocking delay hack could be added here if needed, 
-            // but resetting to center is fine.
         }
         if (bx > SCREEN_W) {
             pScore++;
-            beepTap(); // High beep
+            beepTap();
             bx = 64; by = 32;
-            vx = -2.5f; vy = 1.8f;
+            vx = -2.5f; vy = (random(2) == 0 ? 1.8f : -1.8f); // BUG-27 FIX: reset vy
             pY = 25; cY = 25;
             needsStatusRedraw = true;
         }

@@ -167,12 +167,18 @@ void drawWifiTarget() {
   oled.setTextColor(SSD1306_WHITE);
   
   // Draw Graph — find max value for auto-scaling
-  int maxVal = 0; // traffic starts from 0; dBm uses negative values
-  int minVal = -30; // dBm best case
+  // BUG-FIX: dBm values are NEGATIVE (e.g. -70). The old code set maxVal=0 and minVal=-30
+  // then checked `dbmHistory[i] > maxVal` — but a negative value is never > 0, so maxVal
+  // stayed at 0 and autoscale was always broken. Fix: track the value closest to 0 (strongest
+  // signal) for max and furthest from 0 (weakest) for min, using proper negative comparisons.
+  int maxVal = -100; // weakest possible (very far)
+  int minVal = -30;  // strongest typical indoor RSSI
   for (int i = 0; i < GRAPH_W; i++) {
     if (wifiView == 1) {
-      if (dbmHistory[i] > maxVal && dbmHistory[i] < 0) maxVal = dbmHistory[i];
-      if (dbmHistory[i] < minVal && dbmHistory[i] < 0) minVal = dbmHistory[i];
+      if (dbmHistory[i] < 0) { // valid reading
+        if (dbmHistory[i] > maxVal) maxVal = dbmHistory[i]; // closer to 0 = stronger
+        if (dbmHistory[i] < minVal) minVal = dbmHistory[i]; // further from 0 = weaker
+      }
     } else {
       // Only count real (non-sentinel) values for auto-scale
       if (trafficHistory[i] != -1 && trafficHistory[i] > maxVal) maxVal = trafficHistory[i];
@@ -469,7 +475,12 @@ void AppWifi_HandleEvent(LogicalEvent ev) {
     if (wifiView == 0) { wifiSel = max(0, wifiSel - 1); needsRedraw = true; }
   }
   else if (ev == EV_DOWN_TAP) {
-    if (wifiView == 0) { wifiSel++; needsRedraw = true; }
+    if (wifiView == 0) {
+      // BUG-FIX: clamp wifiSel against actual count to prevent out-of-bounds access
+      int n = WiFi.scanComplete();
+      int maxSel = (n > 0 && n != WIFI_SCAN_RUNNING && n != WIFI_SCAN_FAILED) ? n - 1 : wifiSel;
+      if (wifiSel < maxSel) { wifiSel++; needsRedraw = true; }
+    }
   }
   else if (ev == EV_CENTER_TAP) {
     if (wifiView == 0) {
@@ -517,10 +528,24 @@ void AppWifi_HandleEvent(LogicalEvent ev) {
     }
   }
   else if (ev == EV_LEFT_TAP) {
-    buzzNote(800, 200);
+    beepTap();
     if (wifiView == 1 || wifiView == 2) {
       if (wifiView == 2) esp_wifi_set_promiscuous(false);
       wifiView = 0; // Go back to scanner
+      needsRedraw = true;
+      lastScanStatus = -99;
+      WiFi.scanNetworks(true); // Restart scan for fresh results
+    } else {
+      AppManager_ReturnToMenu();
+    }
+  }
+  else if (ev == EV_BACKSPACE_HOLD_2S) {
+    // FIX: Star-hold (EV_BACKSPACE_HOLD_2S) in WiFi analyzer was silently ignored.
+    // In RSSI/Traffic views it should navigate back to scanner first;
+    // in scanner view it should return to the main menu, consistent with all other apps.
+    if (wifiView == 2) esp_wifi_set_promiscuous(false);
+    if (wifiView == 1 || wifiView == 2) {
+      wifiView = 0;
       needsRedraw = true;
       lastScanStatus = -99;
       WiFi.scanNetworks(true);

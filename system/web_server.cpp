@@ -24,7 +24,9 @@ const char index_html[] PROGMEM = R"rawliteral(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Macro Keyboard — Dashboard</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    /* FIX 31: Removed Google Fonts CDN import — it fails silently in SoftAP mode
+       (no internet connection), breaking typography. System font stack provides
+       excellent native UI fonts on all platforms without any network request. */
     *{margin:0;padding:0;box-sizing:border-box}
     :root{
       --bg:#07070d;--surface:#111119;--card:#181824;--border:#252535;
@@ -32,7 +34,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       --warn:#f0a84a;--text:#eeeef8;--muted:#5e5e7a;--muted2:#888;
     }
     html{scroll-behavior:smooth}
-    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
     .topbar{
       background:linear-gradient(135deg,rgba(26,26,46,0.97),rgba(16,16,36,0.99));
       border-bottom:1px solid var(--border);padding:16px 20px;
@@ -732,8 +734,13 @@ void WebServer_Init() {
 
 void WebServer_Stop() {
     serverRunning = false;
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    webServerTaskHandle = NULL;
+    // BUG-28 FIX: Don't null webServerTaskHandle here.
+    // The task self-nulls it on exit (see webServerTask). Setting it NULL here
+    // before the task actually exits causes WebServer_Init() to spawn a SECOND
+    // web server task if called quickly, causing two tasks fighting for port 80.
+    // Just wait generously for the task to finish — it checks serverRunning every 5ms.
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+    // Handle is already NULL'd by the task itself at this point.
 }
 
 bool WebServer_RebootRequested() {

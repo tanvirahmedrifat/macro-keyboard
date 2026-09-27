@@ -58,8 +58,11 @@ extern int dispState;
 bool macroDelay(int ms);
 void humanType(const char* text);
 void humanTap(uint8_t key);
+int gaussRandom(int mean, int spread);
 void drawAction(const char* msg);
 void drawPasswordTyping();
+void d1Draw(const char* msg = "", bool showPwd = false);
+void d2Idle();
 
 extern bool d2HoldPwd;
 extern char pwd[];

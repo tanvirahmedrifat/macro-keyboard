@@ -1,8 +1,6 @@
 opencv-python
-numexpr
-mss
-pyserial
 numpy
-websockets
+pyserial
 pytesseract
-mss
+customtkinter
+Pillow

@@ -175,9 +175,16 @@ void GameTetris_Update() {
         if (redrawNeeded) {
             oled.clearDisplay();
             oled.setTextColor(SSD1306_WHITE);
+            // FIX: Show final score and retry prompt on game over
             oled.setTextSize(2);
-            oled.setCursor(10, 25);
-            oled.print("GAME OVER!");
+            oled.setCursor(10, 10);
+            oled.print("GAME OVER");
+            oled.setTextSize(1);
+            oled.setCursor(20, 38);
+            oled.print("Score: ");
+            oled.print(score);
+            oled.setCursor(10, 50);
+            oled.print("SELECT to Retry");
             oled.display();
             redrawNeeded = false;
         }
@@ -210,14 +217,17 @@ void GameTetris_Update() {
         if (ttFits(cur, 0, 1)) {
             cur.y++;
         } else {
-            int8_t abs[4][2];
-            cur.getAbs(abs);
+            // BUG-FIX: renamed `abs` to `absCells` — `abs` shadows the C stdlib abs() function.
+            // On some compiler versions this causes the wrong overload to be selected silently.
+            int8_t absCells[4][2];
+            cur.getAbs(absCells);
             for (int i = 0; i < 4; i++) {
-                if (abs[i][1] >= 0) {
-                    board[abs[i][1]][abs[i][0]] = 1;
+                if (absCells[i][1] >= 0) {
+                    board[absCells[i][1]][absCells[i][0]] = 1;
                 }
             }
             beepTap(); // Beep when piece locks
+            needsStatusRedraw = true; // FIX: Update OLED 2 score/level immediately after lock
             
             int cleared = 0;
             for (int r = TT_ROWS - 1; r >= 0; r--) {
@@ -277,11 +287,11 @@ void GameTetris_Update() {
         }
         
         // Draw current piece
-        int8_t abs[4][2];
-        cur.getAbs(abs);
+        int8_t absCells[4][2]; // BUG-42 FIX: renamed abs to absCells
+        cur.getAbs(absCells);
         for (int i = 0; i < 4; i++) {
-            if (abs[i][1] >= 0) {
-                oled.fillRect(TT_OX + abs[i][0] * TT_SZ, TT_OY + abs[i][1] * TT_SZ, TT_SZ - 1, TT_SZ - 1, SSD1306_WHITE);
+            if (absCells[i][1] >= 0) {
+                oled.fillRect(TT_OX + absCells[i][0] * TT_SZ, TT_OY + absCells[i][1] * TT_SZ, TT_SZ - 1, TT_SZ - 1, SSD1306_WHITE);
             }
         }
         
@@ -290,10 +300,23 @@ void GameTetris_Update() {
         while (ttFits(ghost, 0, 1)) {
             ghost.y++;
         }
-        ghost.getAbs(abs);
+        // BUG-FIX: renamed `abs` to avoid shadowing stdlib abs().
+        // BUG-FIX: ghost visibility check was comparing ghost cell absolute Y against
+        // `cur.y + cur.cells[i][1]` which doesn't equal the ghost cell absolute Y.
+        // Fixed: compare ghost absCells[i] against cur absCells[i] for true overlap check.
+        int8_t ghostCells[4][2], curCells[4][2];
+        ghost.getAbs(ghostCells);
+        cur.getAbs(curCells);
         for (int i = 0; i < 4; i++) {
-            if (abs[i][1] >= 0 && abs[i][1] != cur.y + cur.cells[i][1]) {
-                oled.drawRect(TT_OX + abs[i][0] * TT_SZ + 1, TT_OY + abs[i][1] * TT_SZ + 1, TT_SZ - 2, TT_SZ - 2, SSD1306_WHITE);
+            // Only draw ghost cell if it doesn't overlap with the current piece
+            bool overlaps = false;
+            for (int j = 0; j < 4; j++) {
+                if (ghostCells[i][0] == curCells[j][0] && ghostCells[i][1] == curCells[j][1]) {
+                    overlaps = true; break;
+                }
+            }
+            if (ghostCells[i][1] >= 0 && !overlaps) {
+                oled.drawRect(TT_OX + ghostCells[i][0] * TT_SZ + 1, TT_OY + ghostCells[i][1] * TT_SZ + 1, TT_SZ - 2, TT_SZ - 2, SSD1306_WHITE);
             }
         }
         

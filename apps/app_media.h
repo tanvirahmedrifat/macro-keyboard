@@ -11,5 +11,6 @@ void AppMedia_Btn3_Hold();
 void AppMedia_Btn3_Tap();
 void AppMedia_Btn4_Hold();
 void AppMedia_Btn4_Tap();
+void AppMedia_Btn5_Tap();
 
 #endif
